@@ -26,7 +26,7 @@ def webhook():
         ai_response = completion.choices[0].message["content"]
     except Exception as e:
         print(f"[ERROR GPT] {e}")  # 👈 esto te mostrará el problema real
-        ai_response = "Lo siento, ocurrió un error al procesar tu mensaje."
+        ai_response = f"Hubo un error: {str(e)}"
 
     # Crear respuesta Twilio
     twilio_response = MessagingResponse()
