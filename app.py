@@ -33,6 +33,11 @@ def webhook():
     twilio_response.message(ai_response)
     return str(twilio_response)
 
+@app.route("/", methods=["GET"])
+def home():
+    return "Aurora está viva y despierta 🌞", 200
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
