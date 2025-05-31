@@ -247,7 +247,10 @@ def webhook():
         lower_msg = user_msg.lower()
         # 🔍 Verificar si están preguntando por una referencia
         # 🔍 Verificar si están preguntando por una referencia
-        match_ref = re.search(r'\b[a-z]{2}\d{3,4}\b', lower_msg)
+        lower_msg = user_msg.lower()
+        mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
+        match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
+
         if match_ref:
             ref_encontrada = match_ref.group().upper()
             ai_response = buscar_por_referencia(ref_encontrada)
@@ -256,6 +259,7 @@ def webhook():
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
             return str(twilio_response)
+
 
 
         elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
