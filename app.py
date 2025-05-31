@@ -254,6 +254,10 @@ def webhook():
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
         match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
 
+        # Recuperar info previa
+        datos_cliente = recuperar_cliente_info(sender_number)
+        nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
+
         if match_ref:
             ref_encontrada = match_ref.group().upper()
             ai_response = buscar_por_referencia(ref_encontrada, nombre)
@@ -287,10 +291,6 @@ def webhook():
         if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
 
-
-        # Recuperar info previa
-        datos_cliente = recuperar_cliente_info(sender_number)
-        nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
 
         frases = []
         if nombre:
