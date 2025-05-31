@@ -199,7 +199,7 @@ def webhook():
                 "content": (
                     "¡Hola! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
                     "Estoy aquí para ayudarte con nuestros productos, separados y más. "
-                    "¿Podrías indicarme tu nombre para ofrecerte una mejor atención? 💖"
+                    "¿En qué puedo asistirte hoy? 💖"
                 )
             })
 
