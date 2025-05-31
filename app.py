@@ -155,6 +155,85 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
     conn.close()
 
 
+# 🔹 Buscar productos por referencia
+def buscar_por_referencia(ref):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT color, precio_al_detal, precio_por_mayor
+        FROM inventario
+        WHERE ref = %s AND cantidad > 0
+    """, (ref.upper(),))
+    resultados = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not resultados:
+        return f"La referencia **{ref.upper()}** está *agotada* por el momento."
+    
+    respuesta = f"Sí, tenemos disponible la referencia **{ref.upper()}** en los siguientes colores:\n"
+    for color, detal, mayor in resultados:
+        respuesta += f"- Color **{color}** – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
+    return respuesta.strip()
+
+
+# 🔹 Buscar productos en promoción (detal < 40000)
+def buscar_promociones():
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT ref, color, precio_al_detal
+        FROM inventario
+        WHERE precio_al_detal < 40000 AND cantidad > 0
+        ORDER BY precio_al_detal ASC
+        LIMIT 3
+    """)
+    resultados = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not resultados:
+        return "Por ahora no tenemos promociones disponibles 🥺, pero pronto vendrán nuevas ofertas."
+
+    respuesta = "¡Claro! Estos productos están en *promoción*:\n"
+    for ref, color, precio in resultados:
+        respuesta += f"- **{ref}** en color **{color}** – solo ${precio:,.0f}\n"
+    return respuesta.strip()
+
+
+# 🔹 Verificar si una referencia está agotada (cantidad 0 en todos los colores)
+def verificar_agotado(ref):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM inventario
+        WHERE ref = %s AND cantidad > 0
+    """, (ref.upper(),))
+    disponible = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+
+    return disponible == 0
+
+
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -166,6 +245,26 @@ def webhook():
         primera_vez = len(historial) == 0
 
         lower_msg = user_msg.lower()
+        # 🔍 Verificar si están preguntando por una referencia
+        # 🔍 Verificar si están preguntando por una referencia
+        if re.search(r'\bjg\d{3}\b', lower_msg):
+            ref_encontrada = re.findall(r'\bjg\d{3}\b', lower_msg)[0]
+            ai_response = buscar_por_referencia(ref_encontrada)
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
+
+        elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
+            ai_response = buscar_promociones()
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
+
+
         posibles_prendas = ["conjunto", "vestido", "body", "blusa", "falda"]
         posibles_tallas = ["xs", "s", "m", "l", "xl"]
 
