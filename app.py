@@ -256,7 +256,7 @@ def webhook():
 
         if match_ref:
             ref_encontrada = match_ref.group().upper()
-            ai_response = buscar_por_referencia(ref_encontrada)
+            ai_response = buscar_por_referencia(ref_encontrada, nombre)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
