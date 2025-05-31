@@ -155,7 +155,7 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
     conn.close()
 
 
-def buscar_por_referencia(ref):
+def buscar_por_referencia(ref, nombre_cliente=None):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -173,13 +173,16 @@ def buscar_por_referencia(ref):
     cur.close()
     conn.close()
 
-    if not resultados:
-        return f"La referencia **{ref.upper()}** está *agotada* por el momento."
+    saludo = f"💖 ¡Genial, {nombre_cliente}!" if nombre_cliente else "💖 ¡Genial!"
 
-    respuesta = f"Sí, tenemos disponible la(s) referencia(s) similar(es) a **{ref.upper()}**:\n"
+    if not resultados:
+        return f"{saludo} La referencia *{ref.upper()}* está *agotada* 🥺 por el momento . Si deseas te puedo recomendar otras prendas similares o enviarte el catálogo completo 📸."
+
+    respuesta = f"{saludo} Tenemos disponible la(s) referencia(s) similar(es) a *{ref.upper()}*:\n"
     for ref_real, color, detal, mayor in resultados:
-        respuesta += f"- **{ref_real}** en color **{color}** – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
+        respuesta += f"- *{ref_real}* en color *{color}* – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
     return respuesta.strip()
+
 
 
 
@@ -207,9 +210,9 @@ def buscar_promociones():
     if not resultados:
         return "Por ahora no tenemos promociones disponibles 🥺, pero pronto vendrán nuevas ofertas."
 
-    respuesta = "¡Claro! Estos productos están en *promoción*:\n"
+    respuesta = "¡Claro! 🌟💖👗 Estos productos están en *promoción*:\n"
     for ref, color, precio in resultados:
-        respuesta += f"- **{ref}** en color **{color}** – solo ${precio:,.0f}\n"
+        respuesta += f"- *{ref}* en color *{color}* – solo ${precio:,.0f}\n"
     return respuesta.strip()
 
 
