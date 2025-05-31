@@ -155,7 +155,7 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
     conn.close()
 
 
-def buscar_por_referencia(ref, nombre_cliente=None):
+def buscar_por_referencia(ref):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -173,16 +173,13 @@ def buscar_por_referencia(ref, nombre_cliente=None):
     cur.close()
     conn.close()
 
-    saludo = f"💖 ¡Genial, {nombre_cliente}!" if nombre_cliente else "💖 ¡Genial!"
-
     if not resultados:
-        return f"{saludo} La referencia *{ref.upper()}* está *agotada* 🥺 por el momento . Si deseas te puedo recomendar otras prendas similares o enviarte el catálogo completo 📸."
+        return f"La referencia *{ref.upper()}* está *agotada* por el momento."
 
-    respuesta = f"{saludo} Tenemos disponible la(s) referencia(s) similar(es) a *{ref.upper()}*:\n"
+    respuesta = f"Sí, tenemos disponible la(s) referencia(s) similar(es) a *{ref.upper()}*:\n"
     for ref_real, color, detal, mayor in resultados:
         respuesta += f"- *{ref_real}* en color *{color}* – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
     return respuesta.strip()
-
 
 
 
@@ -210,7 +207,7 @@ def buscar_promociones():
     if not resultados:
         return "Por ahora no tenemos promociones disponibles 🥺, pero pronto vendrán nuevas ofertas."
 
-    respuesta = "¡Claro! 🌟💖👗 Estos productos están en *promoción*:\n"
+    respuesta = "¡Claro! Estos productos están en *promoción*:\n"
     for ref, color, precio in resultados:
         respuesta += f"- *{ref}* en color *{color}* – solo ${precio:,.0f}\n"
     return respuesta.strip()
@@ -254,13 +251,9 @@ def webhook():
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
         match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
 
-        # Recuperar info previa
-        datos_cliente = recuperar_cliente_info(sender_number)
-        nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
-
         if match_ref:
             ref_encontrada = match_ref.group().upper()
-            ai_response = buscar_por_referencia(ref_encontrada, nombre)
+            ai_response = buscar_por_referencia(ref_encontrada)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
@@ -291,6 +284,10 @@ def webhook():
         if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
 
+
+        # Recuperar info previa
+        datos_cliente = recuperar_cliente_info(sender_number)
+        nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
 
         frases = []
         if nombre:
