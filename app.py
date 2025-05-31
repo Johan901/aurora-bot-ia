@@ -155,7 +155,6 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
     conn.close()
 
 
-# 🔹 Buscar productos por referencia
 def buscar_por_referencia(ref):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
@@ -166,21 +165,22 @@ def buscar_por_referencia(ref):
     )
     cur = conn.cursor()
     cur.execute("""
-        SELECT color, precio_al_detal, precio_por_mayor
+        SELECT ref, color, precio_al_detal, precio_por_mayor
         FROM inventario
-        WHERE ref = %s AND cantidad > 0
-    """, (ref.upper(),))
+        WHERE ref ILIKE %s AND cantidad > 0
+    """, (ref.upper() + '%',))
     resultados = cur.fetchall()
     cur.close()
     conn.close()
 
     if not resultados:
         return f"La referencia **{ref.upper()}** está *agotada* por el momento."
-    
-    respuesta = f"Sí, tenemos disponible la referencia **{ref.upper()}** en los siguientes colores:\n"
-    for color, detal, mayor in resultados:
-        respuesta += f"- Color **{color}** – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
+
+    respuesta = f"Sí, tenemos disponible la(s) referencia(s) similar(es) a **{ref.upper()}**:\n"
+    for ref_real, color, detal, mayor in resultados:
+        respuesta += f"- **{ref_real}** en color **{color}** – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
     return respuesta.strip()
+
 
 
 # 🔹 Buscar productos en promoción (detal < 40000)
