@@ -11,37 +11,32 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 import re
 
 def detectar_nombre(texto):
-    texto = texto.strip()
-    texto_lower = texto.lower()
+    texto = texto.strip().lower()
 
-    frases = ["me llamo", "soy", "mi nombre es"]
-    for frase in frases:
-        if frase in texto_lower:
-            partes = texto_lower.split()
-            for i, palabra in enumerate(partes):
-                if palabra in frase:
-                    if i + 1 < len(partes):
-                        posible = texto.split()[i + 1]
-                        if posible.isalpha():
-                            return posible.capitalize()
+    # Detecta nombre en frases típicas
+    patrones = [
+        r"\bme llamo (\w+)",
+        r"\bmi nombre es (\w+)",
+        r"\bsoy (\w+)"
+    ]
+    for patron in patrones:
+        match = re.search(patron, texto)
+        if match:
+            nombre = match.group(1)
+            if nombre.isalpha():
+                return nombre.capitalize()
 
-    if texto.isalpha() and texto.istitle() and len(texto) <= 15:
-        return texto
+    # Si solo escribe el nombre
+    if texto.isalpha() and texto.istitle() and len(texto) <= 20:
+        return texto.strip()
 
-    partes = texto.split(',')
-    if len(partes) == 2 and partes[1].strip().istitle():
-        posible = partes[1].strip()
-        if posible.isalpha():
-            return posible
-
-    palabras = texto.split()
-    for i, palabra in enumerate(palabras):
-        if palabra.lower() in ["gracias", "hola"] and i + 1 < len(palabras):
-            posible_nombre = palabras[i + 1]
-            if posible_nombre.istitle() and posible_nombre.isalpha():
-                return posible_nombre
+    # Intento por estructura: "Hola, Juan"
+    match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
+    if match and match.group(2).isalpha():
+        return match.group(2).capitalize()
 
     return None
+
 
 def detectar_correo(texto):
     patron = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
@@ -252,7 +247,7 @@ def buscar_por_tipo_prenda(prenda_usuario, nombre_usuario=""):
     return respuesta.strip()
 
 
-def recomendar_prendas(nombre_usuario=""):
+def recomendar_prendas(nombre_usuario="", excluidas=[]):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -261,13 +256,18 @@ def recomendar_prendas(nombre_usuario=""):
         port=os.getenv("PG_PORT", "5432")
     )
     cur = conn.cursor()
-    cur.execute("""
+
+    query = """
         SELECT ref, color, precio_al_detal, precio_por_mayor
         FROM inventario
         WHERE cantidad > 0
-        ORDER BY RANDOM()
-        LIMIT 3
-    """)
+    """
+    if excluidas:
+        placeholders = ','.join(['%s'] * len(excluidas))
+        query += f" AND ref NOT IN ({placeholders})"
+    query += " ORDER BY RANDOM() LIMIT 3"
+
+    cur.execute(query, excluidas if excluidas else [])
     resultados = cur.fetchall()
     cur.close()
     conn.close()
@@ -281,6 +281,16 @@ def recomendar_prendas(nombre_usuario=""):
 
     respuesta += "\n¿Te gusta alguno? Puedo ayudarte a separarlo 🛍️💖"
     return respuesta
+
+
+def referencias_mostradas(historial):
+    patron_ref = re.compile(r'\*\*?([A-Z0-9\-]{2,10})\*\*?')
+    refs = set()
+    for h in historial:
+        if h["role"] == "assistant":
+            matches = patron_ref.findall(h["content"])
+            refs.update(matches)
+    return list(refs)
 
 
 # 🔹 Verificar si una referencia está agotada (cantidad 0 en todos los colores)
@@ -359,13 +369,23 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
         
-        elif any(p in lower_msg for p in ["recomiéndame", "que me recomiendas", "recomiendame algo", "que me quedaria bien", "recomienda", "sugiere", "sugerencia", "qué me ofreces", "tienes algo bonito", "algo que me quede bien"]):
+        elif any(p in lower_msg for p in ["recomiéndame", "que me recomiendas", "recomendar", "mostrarme" "mostrar ref" "recomiendame algo", "que me quedaria bien", "recomienda", "sugiere", "sugerencia", "qué me ofreces", "tienes algo bonito", "algo que me quede bien"]):
             ai_response = recomendar_prendas(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
             return str(twilio_response)
+        
+        elif any(f in lower_msg for f in ["otros", "más opciones", "muéstrame más", "algo diferente", "diferente", "otras referencias", "otra opción", "más referencias"]):
+            ya_mostradas = referencias_mostradas(historial)
+            ai_response = recomendar_prendas(nombre_usuario, excluidas=ya_mostradas)
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
+
 
 
         frases = []
