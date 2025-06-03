@@ -155,7 +155,7 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
     conn.close()
 
 
-def buscar_por_referencia(ref):
+def buscar_por_referencia(ref, nombre_usuario):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -174,17 +174,22 @@ def buscar_por_referencia(ref):
     conn.close()
 
     if not resultados:
-        return f"La referencia *{ref.upper()}* está *agotada* por el momento."
+        sugerencias = recomendar_prendas(nombre_usuario)
+        return (
+            f"Lo siento mucho {nombre_usuario} la referencia *{ref.upper()}* está *agotada* 😔.\n\n"
+            "Pero no te preocupes, mira lo que te puedo sugerir en su lugar 💫:\n\n"
+            f"{sugerencias}"
+        )
 
-    respuesta = f"Sí, tenemos disponible la(s) referencia(s) similar(es) a *{ref.upper()}*:\n"
+
+    respuesta = f"Sí {nombre_usuario}, tenemos disponible la(s) referencia(s) similar(es) a *{ref.upper()}*💖🥰✨:\n"
     for ref_real, color, detal, mayor in resultados:
         respuesta += f"- *{ref_real}* en color *{color}* – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
     return respuesta.strip()
 
 
-
-# 🔹 Buscar productos en promoción (detal < 40000)
-def buscar_promociones():
+# Mostrar prendas en promo mayor a 40.000
+def buscar_promociones(nombre_usuario=""):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -194,7 +199,7 @@ def buscar_promociones():
     )
     cur = conn.cursor()
     cur.execute("""
-        SELECT ref, color, precio_al_detal
+        SELECT ref, color, precio_al_detal, precio_por_mayor
         FROM inventario
         WHERE precio_al_detal < 40000 AND cantidad > 0
         ORDER BY precio_al_detal ASC
@@ -205,12 +210,77 @@ def buscar_promociones():
     conn.close()
 
     if not resultados:
-        return "Por ahora no tenemos promociones disponibles 🥺, pero pronto vendrán nuevas ofertas."
+        return f"Por ahora no tenemos promociones disponibles {nombre_usuario} 🥺, pero pronto vendrán nuevas ofertas. ¿Te gustaría que te recomiende algo especial mientras tanto? 💡"
 
-    respuesta = "¡Claro! Estos productos están en *promoción*:\n"
-    for ref, color, precio in resultados:
-        respuesta += f"- *{ref}* en color *{color}* – solo ${precio:,.0f}\n"
+    respuesta = f"¡Claro {nombre_usuario}! 🥰✨🥳 Estos productos están en *promoción*:\n"
+    for ref, color, detal, mayor in resultados:
+        respuesta += f"- *{ref}* en color *{color}* – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
+
+    respuesta += "\n\n¿Te interesa alguno de estos? 🛍️ Puedo ayudarte a hacer el proceso de compra ✨"
+
     return respuesta.strip()
+
+#Buscar tipo de prendas del cliente
+def buscar_por_tipo_prenda(prenda_usuario, nombre_usuario=""):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT ref, color, precio_al_detal, precio_por_mayor
+        FROM inventario
+        WHERE UPPER(tipo_prenda) LIKE %s AND cantidad > 0
+        ORDER BY precio_al_detal ASC
+        LIMIT 5
+    """, ('%' + prenda_usuario.upper() + '%',))
+    resultados = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not resultados:
+        return f"Lo siento {nombre_usuario} 😔, por ahora no tengo disponibles *{prenda_usuario}*. Pero si quieres puedo sugerirte otras prendas hermosas. ¿Te gustaría ver algunas opciones? ✨"
+
+    respuesta = f"¡Claro {nombre_usuario}! 💖 Mira lo que tengo disponible en *{prenda_usuario}s*:\n"
+    for ref, color, detal, mayor in resultados:
+        respuesta += f"- *{ref}* en color *{color}* – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
+
+    respuesta += "\n¿Te gusta alguno? Puedo ayudarte a separarlo o mostrarte más opciones 🛍️✨"
+    return respuesta.strip()
+
+
+def recomendar_prendas(nombre_usuario=""):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT ref, color, precio_al_detal, precio_por_mayor
+        FROM inventario
+        WHERE cantidad > 0
+        ORDER BY RANDOM()
+        LIMIT 3
+    """)
+    resultados = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not resultados:
+        return f"No tengo sugerencias en este momento {nombre_usuario} ☹️😥. Pero si quieres, puedo buscar contigo lo que más se ajuste a tu estilo. 💫"
+
+    respuesta = f"Mira lo que encontré para ti {nombre_usuario} 🤩👀✨:\n"
+    for ref, color, detal, mayor in resultados:
+        respuesta += f"- *{ref}* en color *{color}* – ${detal:,.0f} al detal / ${mayor:,.0f} por mayor\n"
+
+    respuesta += "\n¿Te gusta alguno? Puedo ayudarte a separarlo 🛍️💖"
+    return respuesta
 
 
 # 🔹 Verificar si una referencia está agotada (cantidad 0 en todos los colores)
@@ -246,31 +316,10 @@ def webhook():
 
         lower_msg = user_msg.lower()
         # 🔍 Verificar si están preguntando por una referencia
-        # 🔍 Verificar si están preguntando por una referencia
-        lower_msg = user_msg.lower()
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
         match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
 
-        if match_ref:
-            ref_encontrada = match_ref.group().upper()
-            ai_response = buscar_por_referencia(ref_encontrada)
-            insertar_mensaje(sender_number, "user", user_msg)
-            insertar_mensaje(sender_number, "assistant", ai_response)
-            twilio_response = MessagingResponse()
-            twilio_response.message(ai_response)
-            return str(twilio_response)
-
-
-
-        elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
-            ai_response = buscar_promociones()
-            insertar_mensaje(sender_number, "user", user_msg)
-            insertar_mensaje(sender_number, "assistant", ai_response)
-            twilio_response = MessagingResponse()
-            twilio_response.message(ai_response)
-            return str(twilio_response)
-
-
+        #Prendas
         posibles_prendas = ["conjunto", "vestido", "body", "blusa", "falda"]
         posibles_tallas = ["xs", "s", "m", "l", "xl"]
 
@@ -289,41 +338,94 @@ def webhook():
         datos_cliente = recuperar_cliente_info(sender_number)
         nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
 
+        nombre_usuario = f"{nombre}," if nombre else ""
+
+        if match_ref:
+            ref_encontrada = match_ref.group().upper()
+            ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
+
+
+
+        elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
+            ai_response = buscar_promociones(nombre_usuario)
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
+        
+        elif any(p in lower_msg for p in ["recomiéndame", "que me recomiendas", "recomiendame algo", "que me quedaria bien", "recomienda", "sugiere", "sugerencia", "qué me ofreces", "tienes algo bonito", "algo que me quede bien"]):
+            ai_response = recomendar_prendas(nombre_usuario)
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
+
+
         frases = []
+
         if nombre:
-            frases.append(f"Mi nombre es {nombre}.")
+            frases.append(f"Hola {nombre}, ¿cómo estás? 🌸")
         if prenda and talla:
-            frases.append(f"La última vez pedí un {prenda} talla {talla}.")
+            frases.append(f"La última vez pediste un {prenda} talla {talla}.")
         elif prenda:
-            frases.append(f"La última vez pedí un {prenda}.")
+            frases.append(f"La última vez pediste un {prenda}.")
+
 
         # Mensaje especial si es primera vez
         if primera_vez:
             historial.append({
                 "role": "assistant",
                 "content": (
+                    f"¡Hola {nombre}! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
+                    "Estoy aquí para ayudarte con nuestros productos, separados y más. "
+                    "¿Quieres que te muestre algo de nuestros conjuntos más 🔥 o te ayudo con alguna duda? 💖"
+                ) if nombre else (
                     "¡Hola! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
                     "Estoy aquí para ayudarte con nuestros productos, separados y más. "
-                    "¿En qué puedo asistirte hoy? 💖"
+                    "¿Quieres que te muestre algo de nuestros conjuntos más 🔥 o te ayudo con alguna duda? 💖"
                 )
             })
+
+        # Buscar prendas por tipo (conjunto, blusa, body, etc.)
+        tipos_consultables = ["conjunto", "conjuntos", "blusa", "blusas", "body", "bodys", "pantalón", "pantalon", "short", "shorts", "falda", "faldas", "vestido", "vestidos" "ROPA INTERIOR" "interior" "ropa interior" "sudadera" "sudaderas" "pijama" "pijamas" "piyama" "piyamas" "pantaloneta" "pantalonetas" "jeans" "jean" "malla" "mallas" "licra" "licras" "leggins" "leggin" "legin" "legins" "falda short" "enterizo" "enterizos" "enterizo short" "chaqueta" "chaquetas" "chaleco" "chalecos" "camisa" "camisas" "camisetas" "camisera" "camiseras" "buzo" "buso" "buzos" "busos" "blusa jeans" "blusa " "blusa" "bikini" "bikinis"]
+        for tipo in tipos_consultables:
+            if tipo in lower_msg:
+                prenda_estandar = tipo.rstrip('s')  # quitar plural simple
+                ai_response = buscar_por_tipo_prenda(prenda_estandar, nombre_usuario)
+                insertar_mensaje(sender_number, "user", user_msg)
+                insertar_mensaje(sender_number, "assistant", ai_response)
+                twilio_response = MessagingResponse()
+                twilio_response.message(ai_response)
+                return str(twilio_response)
+
 
         # Armar historial para GPT
         if frases:
             historial.insert(0, {"role": "user", "content": " ".join(frases)})
         historial.append({"role": "user", "content": user_msg})
 
+        if nombre:
+            historial.insert(0, {"role": "user", "content": f"Me llamo {nombre}."})
+
         completion = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": "Eres Aurora, la asistente artificial de Dulce Guadalupe 👗✨. Dulce Guadalupe es una empresa caleña de Cali, Colombia ubicados en el centro comercial la casona en la ciudad de cali local 302, legalmente constituida y dedicada a la confección de prendas de vestir para mujeres. Estás aquí para ayudar a cada persona que escribe, como si fuera una amiga cercana 💖. Apoyamos a mujeres emprendedoras con nuestro modelo de negocio y ofrecemos sistemas de separados (las prendas se pueden apartar por 1 semana sin compromiso). Respondes siempre con un tono sutil, amoroso, respetuoso y cercano 🫶. Usa emojis con moderación para que el mensaje se sienta cálido y humano, sin exagerar. Tu trabajo es responder preguntas relacionadas con: catálogo de productos, precios, sistema de separados, cómo revender, formas de pago, envíos, horarios de atención y dudas comunes. Si el cliente parece confundido o agresivo, responde con calma y dulzura. Si alguien duda que eres real, explícale que eres Aurora, una asistente virtual entrenada para ayudar 💻. Si alguien quiere hablar con una persona, dile que puede escribir la palabra 'humano' y con gusto será derivado. Si el cliente se muestra interesado en comprar o conocer productos, ofrece enviarle el catálogo 📸 o sugerencias personalizadas. Siempre estás dispuesta a ayudar, vender, y explicar cómo funciona todo. Si es la primera vez que te escribe, salúdalo con alegría y preséntate. El horario de atención de Dulce Guadalupe es de lunes a sábado de 8:00 a.m. a 6:00 p.m y si alguien pregunta por el horario, responde con exactitud."}] + historial,
+            messages=[{"role": "system", "content": "Eres Aurora, la asistente artificial de Dulce Guadalupe 👗✨. Dulce Guadalupe es una empresa caleña de Cali, Colombia ubicados en el centro comercial la casona en la ciudad de cali local 302, legalmente constituida y dedicada a la confección de prendas de vestir para mujeres. Estás aquí para ayudar a cada persona que escribe, como si fuera una amiga cercana 💖. Apoyamos a mujeres emprendedoras con nuestro modelo de negocio y ofrecemos sistemas de separados (las prendas se pueden apartar por 1 semana sin compromiso). Respondes siempre con un tono sutil, amoroso, respetuoso y cercano 🫶. Usa emojis con moderación para que el mensaje se sienta cálido y humano, sin exagerar. Tu trabajo es responder preguntas relacionadas con: catálogo de productos, precios, sistema de separados, cómo revender, formas de pago, envíos, horarios de atención y dudas comunes. Si el cliente parece confundido o agresivo, responde con calma y dulzura. Si alguien duda que eres real, explícale que eres Aurora, una asistente virtual entrenada para ayudar 💻. Si alguien quiere hablar con una persona, dile que puede escribir la palabra 'humano' y con gusto será derivado. Si el cliente se muestra interesado en comprar o conocer productos, ofrece enviarle el catálogo 📸 o sugerencias personalizadas. Siempre estás dispuesta a ayudar, vender, y explicar cómo funciona todo. Si es la primera vez que te escribe, salúdalo con alegría y preséntate. El horario de atención de Dulce Guadalupe es de lunes a sábado de 8:00 a.m. a 6:00 p.m y si alguien pregunta por el horario, responde con exactitud. Nunca inventes referencias o productos. Siempre responde basándote en los datos reales disponibles. Usa nuestra base de datos para dar la información de las referencias, y recomienda referencias de alli."}] + historial,
             max_tokens=200
         )
 
         ai_response = completion.choices[0].message["content"]
 
         # Si no tenemos nombre guardado ni fue detectado
-        if not nombre and not nombre_detectado:
-            ai_response += "\n\n💡 Por cierto, ¿me podrías decir tu nombre para atenderte mejor? 🫶"
+        if not nombre and not nombre_detectado and "tu nombre" not in user_msg.lower():
+            ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
+
 
     except Exception as e:
         print(f"[ERROR GPT] {e}")
