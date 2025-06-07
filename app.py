@@ -342,34 +342,32 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 # Leemos mediante OCR REF desde imagen del cliente
 def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
     try:
-        # Leer texto con OCR
         texto = pytesseract.image_to_string(Image.open(ruta_imagen))
-        # Buscar patrones tipo "MG20", "JG123", etc.
         posibles_refs = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
 
         for ref in posibles_refs:
             respuesta = buscar_por_referencia(ref, nombre_usuario)
-            # Si no está agotada, ya está disponible
             if "agotada" not in respuesta.lower():
-                return respuesta
+                return ref, respuesta  # ✅ Ref válida y mensaje
 
-        # Si encontró refs pero todas estaban agotadas
         if posibles_refs:
-            return (
-                f"{nombre_usuario} encontré la referencia *{posibles_refs[0]}*, "
+            ref_agotada = posibles_refs[0]
+            mensaje = (
+                f"{nombre_usuario} encontré la referencia *{ref_agotada}*, "
                 "pero está *agotada* 😞.\n\n"
                 "¿Quieres que te recomiende algo igual de hermoso? 💖✨"
             )
+            return ref_agotada, mensaje
 
-        # Si no encontró ninguna ref con OCR
-        return (
+        return None, (
             f"No encontré referencias claras en la imagen {nombre_usuario} 😕.\n"
             "¿Podrías tomar otra foto enfocando bien la referencia blanca? 💖📸"
         )
 
     except Exception as e:
         print(f"[ERROR OCR] {e}")
-        return "Lo siento, hubo un error al procesar la imagen 😥. Intenta de nuevo o envíame otra foto."
+        return None, "Lo siento, hubo un error al procesar la imagen 😥. Intenta de nuevo o envíame otra foto."
+
 
 
 # 🔹 Ruta webhook para Twilio
@@ -412,15 +410,13 @@ def webhook():
             # Descargar imagen a disco temporal
             ruta_img = "/tmp/temp_img.jpg"
             urllib.request.urlretrieve(media_url, ruta_img)
-            ref_ocr = extraer_referencia_desde_imagen(ruta_img)
+            ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+            insertar_mensaje(sender_number, "user", "[Imagen con referencia]")
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
 
-            if ref_ocr:
-                ai_response = buscar_por_referencia(ref_ocr, nombre_usuario)
-                insertar_mensaje(sender_number, "user", "[Imagen con referencia]")
-                insertar_mensaje(sender_number, "assistant", ai_response)
-                twilio_response = MessagingResponse()
-                twilio_response.message(ai_response)
-                return str(twilio_response)
 
 
         # Actualizar cliente si detectó algo
