@@ -5,3 +5,7 @@ python-dotenv
 psycopg2-binary
 pytesseract
 Pillow
+easyocr
+opencv-python-headless
+numpy
+requests
