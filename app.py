@@ -351,44 +351,42 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
         if img is None:
             raise ValueError("No se pudo leer la imagen")
 
-        # 🌀 Redimensionar para evitar imágenes gigantes
-        alto, ancho = img.shape[:2]
-        if max(alto, ancho) > 1000:
-            img = cv2.resize(img, (800, int(800 * alto / ancho)), interpolation=cv2.INTER_AREA)
+        h, w = img.shape[:2]
+        margen = 180  # tamaño de recorte desde cada esquina
 
-        # 🎨 Convertir a escala de grises
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        esquinas = {
+            "sup_izq": img[0:margen, 0:margen],
+            "sup_der": img[0:margen, w-margen:w],
+            "inf_izq": img[h-margen:h, 0:margen],
+            "inf_der": img[h-margen:h, w-margen:w],
+        }
 
-        # 🧼 Filtro para suavizar y reducir glow/sombra
-        filtrada = cv2.bilateralFilter(gray, d=9, sigmaColor=75, sigmaSpace=75)
+        posibles_refs = []
 
-        # 🔲 Umbral adaptativo + umbral global (combinados)
-        adapt = cv2.adaptiveThreshold(filtrada, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                      cv2.THRESH_BINARY, 11, 2)
-        _, global_ = cv2.threshold(filtrada, 127, 255, cv2.THRESH_BINARY)
-        binarizada = cv2.bitwise_or(adapt, global_)
+        for nombre, region in esquinas.items():
+            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+            procesada = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                cv2.THRESH_BINARY_INV, 11, 8
+            )
+            texto = pytesseract.image_to_string(procesada, lang="eng+spa")
+            matches = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
+            posibles_refs.extend(matches)
 
-        # 🧠 OCR con pytesseract
-        texto = pytesseract.image_to_string(binarizada, lang="spa")
-
-        # 🧹 Limpieza básica
-        texto = texto.replace('"', ' ').replace("“", " ").replace("”", " ")
-        texto = texto.replace("‘", " ").replace("’", " ").strip()
-
-        # 🕵️‍♂️ Buscar referencias tipo JG070, MT607, etc.
-        posibles_refs = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
-
+        # Intentar con las referencias detectadas
         for ref in posibles_refs:
             respuesta = buscar_por_referencia(ref, nombre_usuario)
             if "agotada" not in respuesta.lower():
                 return ref, respuesta
 
         if posibles_refs:
-            return posibles_refs[0], (
-                f"{nombre_usuario} encontré la referencia *{posibles_refs[0]}*, "
+            ref_agotada = posibles_refs[0]
+            mensaje = (
+                f"{nombre_usuario} encontré la referencia *{ref_agotada}*, "
                 "pero está *agotada* 😞.\n\n"
                 "¿Quieres que te recomiende algo igual de hermoso? 💖✨"
             )
+            return ref_agotada, mensaje
 
         return None, (
             f"No encontré referencias claras en la imagen {nombre_usuario} 😕.\n"
@@ -397,8 +395,9 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"[ERROR OCR Optimizado] {error_trace}")
+        print(f"[ERROR OCR Esquinas] {error_trace}")
         return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
+
 
 
 # Descargar imagen a disco temporal
