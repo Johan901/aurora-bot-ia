@@ -3,3 +3,5 @@ openai==0.28.1
 twilio
 python-dotenv
 psycopg2-binary
+pytesseract
+Pillow

@@ -4,12 +4,17 @@ import openai
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import psycopg2
+import pytesseract
+import urllib.request
+from PIL import Image
+
 
 app = Flask(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 import re
 
+#Detectamos nombre
 def detectar_nombre(texto):
     texto = texto.strip().lower()
 
@@ -334,6 +339,38 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 ¿Te gustaría que te ayude a hacer tu primer pedido? 🛍️ Estoy aquí para acompañarte. 💫"""
 
 
+# Leemos mediante OCR REF desde imagen del cliente
+def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
+    try:
+        # Leer texto con OCR
+        texto = pytesseract.image_to_string(Image.open(ruta_imagen))
+        # Buscar patrones tipo "MG20", "JG123", etc.
+        posibles_refs = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
+
+        for ref in posibles_refs:
+            respuesta = buscar_por_referencia(ref, nombre_usuario)
+            # Si no está agotada, ya está disponible
+            if "agotada" not in respuesta.lower():
+                return respuesta
+
+        # Si encontró refs pero todas estaban agotadas
+        if posibles_refs:
+            return (
+                f"{nombre_usuario} encontré la referencia *{posibles_refs[0]}*, "
+                "pero está *agotada* 😞.\n\n"
+                "¿Quieres que te recomiende algo igual de hermoso? 💖✨"
+            )
+
+        # Si no encontró ninguna ref con OCR
+        return (
+            f"No encontré referencias claras en la imagen {nombre_usuario} 😕.\n"
+            "¿Podrías tomar otra foto enfocando bien la referencia blanca? 💖📸"
+        )
+
+    except Exception as e:
+        print(f"[ERROR OCR] {e}")
+        return "Lo siento, hubo un error al procesar la imagen 😥. Intenta de nuevo o envíame otra foto."
+
 
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
@@ -360,16 +397,36 @@ def webhook():
         prenda_detectada = next((p for p in posibles_prendas if p in lower_msg), None)
         talla_detectada = next((t.upper() for t in posibles_tallas if f"talla {t}" in lower_msg or f"talla: {t}" in lower_msg), None)
 
-        # Actualizar cliente si detectó algo
-        if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
-            actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
-
-
         # Recuperar info previa
         datos_cliente = recuperar_cliente_info(sender_number)
         nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
 
         nombre_usuario = f"{nombre}," if nombre else ""
+        
+
+        #MEDIA
+        media_url = request.form.get("MediaUrl0")
+        media_type = request.form.get("MediaContentType0")
+
+        if media_url and media_type.startswith("image/"):
+            # Descargar imagen a disco temporal
+            ruta_img = "/tmp/temp_img.jpg"
+            urllib.request.urlretrieve(media_url, ruta_img)
+            ref_ocr = extraer_referencia_desde_imagen(ruta_img)
+
+            if ref_ocr:
+                ai_response = buscar_por_referencia(ref_ocr, nombre_usuario)
+                insertar_mensaje(sender_number, "user", "[Imagen con referencia]")
+                insertar_mensaje(sender_number, "assistant", ai_response)
+                twilio_response = MessagingResponse()
+                twilio_response.message(ai_response)
+                return str(twilio_response)
+
+
+        # Actualizar cliente si detectó algo
+        if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
+            actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
+
 
         if match_ref:
             ref_encontrada = match_ref.group().upper()
