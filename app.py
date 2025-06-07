@@ -347,35 +347,35 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 # Leemos mediante OCR REF desde imagen del cliente
 def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
     try:
-        # Cargar imagen
         img = cv2.imread(ruta_imagen)
         if img is None:
             raise ValueError("No se pudo leer la imagen")
 
-        # Reescalar a menor resolución
-        img = cv2.resize(img, (500, 500), interpolation=cv2.INTER_AREA)
+        # 🌀 Redimensionar para evitar imágenes gigantes
+        alto, ancho = img.shape[:2]
+        if max(alto, ancho) > 1000:
+            img = cv2.resize(img, (800, int(800 * alto / ancho)), interpolation=cv2.INTER_AREA)
 
-        # Convertir a escala de grises
+        # 🎨 Convertir a escala de grises
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Aumentar contraste con histogram equalization
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-        contrast = clahe.apply(gray)
+        # 🧼 Filtro para suavizar y reducir glow/sombra
+        filtrada = cv2.bilateralFilter(gray, d=9, sigmaColor=75, sigmaSpace=75)
 
-        # Filtro bilateral para reducir ruido pero mantener bordes
-        filtrada = cv2.bilateralFilter(contrast, 9, 75, 75)
+        # 🔲 Umbral adaptativo + umbral global (combinados)
+        adapt = cv2.adaptiveThreshold(filtrada, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                      cv2.THRESH_BINARY, 11, 2)
+        _, global_ = cv2.threshold(filtrada, 127, 255, cv2.THRESH_BINARY)
+        binarizada = cv2.bitwise_or(adapt, global_)
 
-        # Umbral adaptativo para binarizar
-        binarizada = cv2.adaptiveThreshold(
-            filtrada, 255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 11, 2
-        )
-
-        # OCR
+        # 🧠 OCR con pytesseract
         texto = pytesseract.image_to_string(binarizada, lang="spa")
 
-        # Buscar referencias tipo "JG070"
+        # 🧹 Limpieza básica
+        texto = texto.replace('"', ' ').replace("“", " ").replace("”", " ")
+        texto = texto.replace("‘", " ").replace("’", " ").strip()
+
+        # 🕵️‍♂️ Buscar referencias tipo JG070, MT607, etc.
         posibles_refs = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
 
         for ref in posibles_refs:
@@ -396,7 +396,8 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
         )
 
     except Exception as e:
-        print(f"[ERROR OCR Liviano] {traceback.format_exc()}")
+        error_trace = traceback.format_exc()
+        print(f"[ERROR OCR Optimizado] {error_trace}")
         return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
 
 
