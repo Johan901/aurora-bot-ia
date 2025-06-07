@@ -10,7 +10,6 @@ import urllib.request
 from PIL import Image
 import traceback
 import requests
-import easyocr
 import cv2
 import numpy as np
 
@@ -346,46 +345,42 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 
 
 # Leemos mediante OCR REF desde imagen del cliente
-# OCR mejorado usando EasyOCR + preprocesamiento
-reader = easyocr.Reader(['es', 'en'], gpu=False)
-
 def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
     try:
-        # Preprocesamiento: mejorar contraste y escala
+        # Leer imagen
         img = cv2.imread(ruta_imagen)
         if img is None:
             raise ValueError("No se pudo leer la imagen")
 
-        # Convertir a escala de grises
+        # Reescalar (reduce consumo y mejora OCR si la imagen es gigante)
+        img = cv2.resize(img, (600, 600), interpolation=cv2.INTER_AREA)
+
+        # Escala de grises
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Aplicar umbral adaptativo para resaltar texto claro
-        procesada = cv2.adaptiveThreshold(gray, 255,
-                                          cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                          cv2.THRESH_BINARY, 11, 2)
+        # Umbral adaptativo
+        procesada = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+            cv2.THRESH_BINARY, 11, 2
+        )
 
-        # OCR con EasyOCR
-        resultados = reader.readtext(procesada, detail=0, paragraph=False)
+        # OCR con pytesseract
+        texto = pytesseract.image_to_string(procesada, lang="spa")
 
-        # Buscar referencias válidas tipo JG070, MT607, etc
-        posibles_refs = []
-        for linea in resultados:
-            coincidencias = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', linea.upper())
-            posibles_refs.extend(coincidencias)
+        # Buscar patrones como JG070, MT607, etc.
+        posibles_refs = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
 
         for ref in posibles_refs:
             respuesta = buscar_por_referencia(ref, nombre_usuario)
             if "agotada" not in respuesta.lower():
-                return ref, respuesta  # ✅ Ref válida
+                return ref, respuesta
 
         if posibles_refs:
-            ref_agotada = posibles_refs[0]
-            mensaje = (
-                f"{nombre_usuario} encontré la referencia *{ref_agotada}*, "
+            return posibles_refs[0], (
+                f"{nombre_usuario} encontré la referencia *{posibles_refs[0]}*, "
                 "pero está *agotada* 😞.\n\n"
                 "¿Quieres que te recomiende algo igual de hermoso? 💖✨"
             )
-            return ref_agotada, mensaje
 
         return None, (
             f"No encontré referencias claras en la imagen {nombre_usuario} 😕.\n"
@@ -394,8 +389,8 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"[ERROR OCR EASYOCR] {error_trace}")
-        return None, f"⚠️ Lo siento, hubo un error procesando la imagen 😥. Intenta de nuevo:\n```{str(e)}```"
+        print(f"[ERROR OCR Optimizado] {error_trace}")
+        return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
 
 
 # Descargar imagen a disco temporal
