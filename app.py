@@ -442,11 +442,18 @@ def webhook():
         nombre_usuario = f"{nombre}," if nombre else ""
         
 
-       # MEDIA
         media_url = request.form.get("MediaUrl0")
         media_type = request.form.get("MediaContentType0")
+        sender_number = request.form.get("From")
 
         if media_url and media_type and media_type.startswith("image/"):
+            nombre_usuario = ""  # en caso de que aún no se haya detectado
+
+            # Intenta recuperar el nombre del cliente
+            datos_cliente = recuperar_cliente_info(sender_number)
+            if datos_cliente and datos_cliente[0]:
+                nombre_usuario = f"{datos_cliente[0]},"
+
             try:
                 ruta_img = descargar_imagen_twilio(media_url)
                 ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
@@ -464,9 +471,7 @@ def webhook():
 
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
-            return str(twilio_response)
-
-
+            return str(twilio_response)  # 🔥 ¡IMPORTANTE! Esto evita que baje al resto del código
 
 
         # Actualizar cliente si detectó algo
