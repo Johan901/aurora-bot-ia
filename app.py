@@ -7,6 +7,7 @@ import psycopg2
 import pytesseract
 import urllib.request
 from PIL import Image
+import traceback
 
 
 app = Flask(__name__)
@@ -544,8 +545,9 @@ def webhook():
 
 
     except Exception as e:
-        print(f"[ERROR GPT] {e}")
-        ai_response = "Lo siento, ocurrió un error al procesar tu mensaje."
+        error_trace = traceback.format_exc()
+        print(f"[ERROR GPT] {error_trace}")
+        ai_response = "Lo siento, ocurrió un error interno procesando tu mensaje 😥."
 
     insertar_mensaje(sender_number, "user", user_msg)
     insertar_mensaje(sender_number, "assistant", ai_response)
