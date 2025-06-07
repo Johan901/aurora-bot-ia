@@ -9,7 +9,7 @@ pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import urllib.request
 from PIL import Image
 import traceback
-
+import requests
 
 app = Flask(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
