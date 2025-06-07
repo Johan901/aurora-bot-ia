@@ -442,18 +442,30 @@ def webhook():
         nombre_usuario = f"{nombre}," if nombre else ""
         
 
-        #MEDIA
+       # MEDIA
         media_url = request.form.get("MediaUrl0")
         media_type = request.form.get("MediaContentType0")
 
         if media_url and media_type and media_type.startswith("image/"):
-            ruta_img = descargar_imagen_twilio(media_url)
-            ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+            try:
+                ruta_img = descargar_imagen_twilio(media_url)
+                ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+
+                if not ai_response:
+                    ai_response = "No pude procesar correctamente la imagen. ¿Puedes enviarla de nuevo, por favor? 🫶📸"
+
+            except Exception as e:
+                error_trace = traceback.format_exc()
+                print(f"[ERROR EN OCR]: {error_trace}")
+                ai_response = f"⚠️ Ocurrió un error al procesar la imagen:\n```{str(e)}```"
+
             insertar_mensaje(sender_number, "user", "[Imagen con referencia]")
             insertar_mensaje(sender_number, "assistant", ai_response)
+
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
             return str(twilio_response)
+
 
 
 
