@@ -347,27 +347,35 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 # Leemos mediante OCR REF desde imagen del cliente
 def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
     try:
-        # Leer imagen
+        # Cargar imagen
         img = cv2.imread(ruta_imagen)
         if img is None:
             raise ValueError("No se pudo leer la imagen")
 
-        # Reescalar (reduce consumo y mejora OCR si la imagen es gigante)
-        img = cv2.resize(img, (600, 600), interpolation=cv2.INTER_AREA)
+        # Reescalar a menor resolución
+        img = cv2.resize(img, (500, 500), interpolation=cv2.INTER_AREA)
 
-        # Escala de grises
+        # Convertir a escala de grises
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Umbral adaptativo
-        procesada = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+        # Aumentar contraste con histogram equalization
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+        contrast = clahe.apply(gray)
+
+        # Filtro bilateral para reducir ruido pero mantener bordes
+        filtrada = cv2.bilateralFilter(contrast, 9, 75, 75)
+
+        # Umbral adaptativo para binarizar
+        binarizada = cv2.adaptiveThreshold(
+            filtrada, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY, 11, 2
         )
 
-        # OCR con pytesseract
-        texto = pytesseract.image_to_string(procesada, lang="spa")
+        # OCR
+        texto = pytesseract.image_to_string(binarizada, lang="spa")
 
-        # Buscar patrones como JG070, MT607, etc.
+        # Buscar referencias tipo "JG070"
         posibles_refs = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
 
         for ref in posibles_refs:
@@ -388,8 +396,7 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
         )
 
     except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"[ERROR OCR Optimizado] {error_trace}")
+        print(f"[ERROR OCR Liviano] {traceback.format_exc()}")
         return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
 
 
