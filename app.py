@@ -5,6 +5,7 @@ from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import psycopg2
 import pytesseract
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import urllib.request
 from PIL import Image
 import traceback
@@ -370,6 +371,15 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
         print(f"[ERROR OCR] {error_trace}")
         return None, f"⚠️ Lo siento, hubo un error al procesar la imagen 😥. Intenta de nuevo o envíame otra foto:\n```{str(e)}```"
 
+# Descargar imagen a disco temporal
+def descargar_imagen_twilio(media_url):
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    response = requests.get(media_url, auth=(account_sid, auth_token))
+    ruta = "/tmp/temp_img.jpg"
+    with open(ruta, "wb") as f:
+        f.write(response.content)
+    return ruta
 
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
@@ -407,10 +417,8 @@ def webhook():
         media_url = request.form.get("MediaUrl0")
         media_type = request.form.get("MediaContentType0")
 
-        if media_url and media_type.startswith("image/"):
-            # Descargar imagen a disco temporal
-            ruta_img = "/tmp/temp_img.jpg"
-            urllib.request.urlretrieve(media_url, ruta_img)
+        if media_url and media_type and media_type.startswith("image/"):
+            ruta_img = descargar_imagen_twilio(media_url)
             ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
             insertar_mensaje(sender_number, "user", "[Imagen con referencia]")
             insertar_mensaje(sender_number, "assistant", ai_response)
