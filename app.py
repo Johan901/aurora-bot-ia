@@ -366,9 +366,9 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
         )
 
     except Exception as e:
-        print(f"[ERROR OCR] {e}")
-        return None, "Lo siento, hubo un error al procesar la imagen 😥. Intenta de nuevo o envíame otra foto."
-
+        error_trace = traceback.format_exc()
+        print(f"[ERROR OCR] {error_trace}")
+        return None, f"⚠️ Lo siento, hubo un error al procesar la imagen 😥. Intenta de nuevo o envíame otra foto:\n```{str(e)}```"
 
 
 # 🔹 Ruta webhook para Twilio
