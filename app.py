@@ -424,7 +424,9 @@ def descargar_imagen_twilio(media_url):
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    user_msg = request.form.get("Body")
+    user_msg = request.form.get("Body") or ""
+    if user_msg is None:
+        user_msg = ""
     sender_number = request.form.get("From")
 
     try:
