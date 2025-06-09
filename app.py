@@ -352,28 +352,22 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
             raise ValueError("No se pudo leer la imagen")
 
         h, w = img.shape[:2]
-        margen = 180  # área principal
-        sub = 100     # área interna secundaria
+        margen = 180
+        offset = 80  # subesquinas
 
-        # Zonas principales (4 esquinas)
-        zonas = {
+        regiones = {
             "sup_izq": img[0:margen, 0:margen],
             "sup_der": img[0:margen, w-margen:w],
             "inf_izq": img[h-margen:h, 0:margen],
             "inf_der": img[h-margen:h, w-margen:w],
+            "sub_sup_izq": img[offset:offset+margen, offset:offset+margen],
+            "sub_sup_der": img[offset:offset+margen, w-offset-margen:w-offset],
+            "sub_inf_izq": img[h-offset-margen:h-offset, offset:offset+margen],
+            "sub_inf_der": img[h-offset-margen:h-offset, w-offset-margen:w-offset],
         }
 
-        # Subesquinas internas (más centradas)
-        zonas.update({
-            "sub_sup_izq": img[30:30+sub, 30:30+sub],
-            "sub_sup_der": img[30:30+sub, w-30-sub:w-30],
-            "sub_inf_izq": img[h-30-sub:h-30, 30:30+sub],
-            "sub_inf_der": img[h-30-sub:h-30, w-30-sub:w-30],
-        })
-
         posibles_refs = []
-
-        for nombre, region in zonas.items():
+        for nombre, region in regiones.items():
             gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
             procesada = cv2.adaptiveThreshold(
                 gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
@@ -383,11 +377,19 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
             matches = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
             posibles_refs.extend(matches)
 
-        # Si encontró algo
+        posibles_refs = list(dict.fromkeys(posibles_refs))  # quitar duplicados
+
         for ref in posibles_refs:
             respuesta = buscar_por_referencia(ref, nombre_usuario)
             if "agotada" not in respuesta.lower():
-                return ref, respuesta
+                respuesta = re.sub(
+                r"tenemos disponible la\(s\) referencia\(s\) similar\(es\) a \*\*?([A-Z]{2,4}\d{2,4})\*\*?",
+                r"La referencia **\1** está disponible en los siguientes colores:",
+                respuesta,
+                flags=re.IGNORECASE
+            )
+            return ref, respuesta
+
 
         if posibles_refs:
             ref_agotada = posibles_refs[0]
@@ -405,7 +407,7 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"[ERROR OCR Zonas Extendidas] {error_trace}")
+        print(f"[ERROR OCR Mejorado] {error_trace}")
         return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
 
 
