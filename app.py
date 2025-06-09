@@ -352,18 +352,28 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
             raise ValueError("No se pudo leer la imagen")
 
         h, w = img.shape[:2]
-        margen = 180  # tamaño de recorte desde cada esquina
+        margen = 180  # área principal
+        sub = 100     # área interna secundaria
 
-        esquinas = {
+        # Zonas principales (4 esquinas)
+        zonas = {
             "sup_izq": img[0:margen, 0:margen],
             "sup_der": img[0:margen, w-margen:w],
             "inf_izq": img[h-margen:h, 0:margen],
             "inf_der": img[h-margen:h, w-margen:w],
         }
 
+        # Subesquinas internas (más centradas)
+        zonas.update({
+            "sub_sup_izq": img[30:30+sub, 30:30+sub],
+            "sub_sup_der": img[30:30+sub, w-30-sub:w-30],
+            "sub_inf_izq": img[h-30-sub:h-30, 30:30+sub],
+            "sub_inf_der": img[h-30-sub:h-30, w-30-sub:w-30],
+        })
+
         posibles_refs = []
 
-        for nombre, region in esquinas.items():
+        for nombre, region in zonas.items():
             gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
             procesada = cv2.adaptiveThreshold(
                 gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
@@ -373,7 +383,7 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
             matches = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
             posibles_refs.extend(matches)
 
-        # Intentar con las referencias detectadas
+        # Si encontró algo
         for ref in posibles_refs:
             respuesta = buscar_por_referencia(ref, nombre_usuario)
             if "agotada" not in respuesta.lower():
@@ -395,9 +405,8 @@ def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"[ERROR OCR Esquinas] {error_trace}")
+        print(f"[ERROR OCR Zonas Extendidas] {error_trace}")
         return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
-
 
 
 # Descargar imagen a disco temporal
