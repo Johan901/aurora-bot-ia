@@ -424,10 +424,14 @@ def descargar_imagen_twilio(media_url):
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    media_url = request.form.get("MediaUrl0")
+    media_type = request.form.get("MediaContentType0")
     user_msg = request.form.get("Body") or ""
-    if user_msg is None:
-        user_msg = ""
     sender_number = request.form.get("From")
+
+    if not user_msg and media_url and media_type.startswith("image/"):
+        user_msg = "[imagen_sola]"  # Texto simbólico para que entre al flujo
+
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
