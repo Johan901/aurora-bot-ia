@@ -424,37 +424,42 @@ def descargar_imagen_twilio(media_url):
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    media_url = request.form.get("MediaUrl0")
-    media_type = request.form.get("MediaContentType0")
-    user_msg = request.form.get("Body") or ""
+    user_msg = (request.form.get("Body") or "").strip()
     sender_number = request.form.get("From")
 
-    # 👇 Esto no es suficiente, mejor hacerlo así:
-    if media_url and media_type and media_type.startswith("image/"):
+    # 🔁 Este bloque nuevo reemplaza el anterior
+    if request.form.get("NumMedia") and int(request.form["NumMedia"]) > 0:
         try:
-            ruta_img = descargar_imagen_twilio(media_url)
+            num_medias = int(request.form["NumMedia"])
+            respuestas = []
+
             datos_cliente = recuperar_cliente_info(sender_number)
             nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
-            ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+            for i in range(num_medias):
+                media_url = request.form.get(f"MediaUrl{i}")
+                media_type = request.form.get(f"MediaContentType{i}")
 
-            if not ai_response:
-                ai_response = "No pude procesar correctamente la imagen. ¿Puedes enviarla de nuevo, por favor? 🫶📸"
+                if media_url and media_type and media_type.startswith("image/"):
+                    ruta_img = descargar_imagen_twilio(media_url)
+                    ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+                    respuestas.append(respuesta)
+
+                    insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
+                    insertar_mensaje(sender_number, "assistant", respuesta)
+
+            twilio_response = MessagingResponse()
+            twilio_response.message("\n\n".join(respuestas))
+            return str(twilio_response)
 
         except Exception as e:
             error_trace = traceback.format_exc()
-            print(f"[ERROR EN OCR]: {error_trace}")
-            ai_response = f"⚠️ Ocurrió un error al procesar la imagen:\n```{str(e)}```"
-
-        insertar_mensaje(sender_number, "user", "[Imagen recibida]")
-        insertar_mensaje(sender_number, "assistant", ai_response)
-
-        twilio_response = MessagingResponse()
-        twilio_response.message(ai_response)
-        return str(twilio_response)
-
-
-
+            print(f"[ERROR MULTI-IMAGEN]: {error_trace}")
+            ai_response = f"⚠️ Ocurrió un error procesando las imágenes:\n```{str(e)}```"
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
