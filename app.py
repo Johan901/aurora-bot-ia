@@ -426,11 +426,11 @@ def descargar_imagen_twilio(media_url):
 def webhook():
     user_msg = (request.form.get("Body") or "").strip()
     sender_number = request.form.get("From")
+    num_medias = int(request.form.get("NumMedia", "0"))
 
-    # 🔁 Este bloque nuevo reemplaza el anterior
-    if request.form.get("NumMedia") and int(request.form["NumMedia"]) > 0:
+    # ✅ Este bloque ahora se ejecuta también si hay texto y media
+    if num_medias > 0:
         try:
-            num_medias = int(request.form["NumMedia"])
             respuestas = []
 
             datos_cliente = recuperar_cliente_info(sender_number)
@@ -461,6 +461,8 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
 
+
+
     try:
         historial = recuperar_historial(sender_number, limite=15)
         primera_vez = len(historial) == 0
@@ -486,38 +488,6 @@ def webhook():
 
         nombre_usuario = f"{nombre}," if nombre else ""
         
-
-        media_url = request.form.get("MediaUrl0")
-        media_type = request.form.get("MediaContentType0")
-        sender_number = request.form.get("From")
-
-        if media_url and media_type and media_type.startswith("image/"):
-            nombre_usuario = ""  # en caso de que aún no se haya detectado
-
-            # Intenta recuperar el nombre del cliente
-            datos_cliente = recuperar_cliente_info(sender_number)
-            if datos_cliente and datos_cliente[0]:
-                nombre_usuario = f"{datos_cliente[0]},"
-
-            try:
-                ruta_img = descargar_imagen_twilio(media_url)
-                ref_ocr, ai_response = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
-
-                if not ai_response:
-                    ai_response = "No pude procesar correctamente la imagen. ¿Puedes enviarla de nuevo, por favor? 🫶📸"
-
-            except Exception as e:
-                error_trace = traceback.format_exc()
-                print(f"[ERROR EN OCR]: {error_trace}")
-                ai_response = f"⚠️ Ocurrió un error al procesar la imagen:\n```{str(e)}```"
-
-            insertar_mensaje(sender_number, "user", "[Imagen con referencia]")
-            insertar_mensaje(sender_number, "assistant", ai_response)
-
-            twilio_response = MessagingResponse()
-            twilio_response.message(ai_response)
-            return str(twilio_response)  # 🔥 ¡IMPORTANTE! Esto evita que baje al resto del código
-
 
         # Actualizar cliente si detectó algo
         if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
