@@ -364,6 +364,86 @@ def extraer_ref_desde_link_catalogo(texto):
         return ref.upper()
     return None
 
+estado_pedidos = {}
+estado_pedidos[sender_number] = {
+    "fase": "esperando_datos",  # o: "esperando_prendas", "esperando_envio", etc.
+    "datos_cliente": {},
+    "prendas": [],
+    "observaciones": "",
+    "medio_conocimiento": "",
+}
+
+
+# FLUJO DE SEPARADOS
+# Nª1 DATOS CLIENTE
+def insertar_o_actualizar_cliente(c):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+
+    # Comprobar si existe
+    cur.execute("SELECT cedula FROM clientes WHERE cedula = %s", (c["cedula"],))
+    existe = cur.fetchone()
+
+    if existe:
+        cur.execute("""
+            UPDATE clientes
+            SET nombre = %s, telefono = %s, email = %s, departamento = %s, ciudad = %s, direccion = %s
+            WHERE cedula = %s
+        """, (c["nombre"], c["telefono"], c["correo"], c["departamento"], c["ciudad"], c["direccion"], c["cedula"]))
+    else:
+        cur.execute("""
+            INSERT INTO clientes (cedula, nombre, telefono, email, departamento, ciudad, direccion)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (c["cedula"], c["nombre"], c["telefono"], c["correo"], c["departamento"], c["ciudad"], c["direccion"]))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+#Nª2 INSERTAR PEDIDOS
+def insertar_pedido_y_detalle(cedula, prendas, envio, observaciones, medio_conocimiento):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+
+    from datetime import datetime, timedelta
+    fecha_pedido = datetime.now()
+    fecha_limite = fecha_pedido + timedelta(days=8)
+
+    total_pedido = sum(p["precio"] for p in prendas)
+
+    cur.execute("""
+        INSERT INTO pedidos (
+            cliente_cedula, fecha_pedido, total_pedido, asesor, envio,
+            fecha_limite, estado, medio_conocimiento, pedido_separado, observaciones
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, 'activo', %s, TRUE, %s)
+        RETURNING id_pedido
+    """, (cedula, fecha_pedido, total_pedido, "3104238002", envio, fecha_limite, medio_conocimiento, observaciones))
+
+    id_pedido = cur.fetchone()[0]
+
+    for prenda in prendas:
+        cur.execute("""
+            INSERT INTO detalle_pedido (id_pedido, referencia, cantidad, precio_unitario)
+            VALUES (%s, %s, %s, %s)
+        """, (id_pedido, prenda["ref"], prenda["cantidad"], prenda["precio"]))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
 
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
@@ -374,6 +454,102 @@ def webhook():
 
     respuestas = []
     ai_response = ""
+   
+    if sender_number in estado_pedidos:
+        estado = estado_pedidos[sender_number]
+        fase = estado["fase"]
+        datos_cliente = estado["datos_cliente"]
+        prendas = estado["prendas"]
+
+        if fase == "esperando_datos":
+            partes = user_msg.strip().split('\n')
+            for parte in partes:
+                if "cedula" in parte.lower():
+                    datos_cliente["cedula"] = ''.join(filter(str.isdigit, parte))
+                elif "nombre" in parte.lower():
+                    datos_cliente["nombre"] = parte.split(":")[-1].strip()
+                elif "telefono" in parte.lower():
+                    datos_cliente["telefono"] = ''.join(filter(str.isdigit, parte))
+                elif "correo" in parte.lower() or "email" in parte.lower():
+                    datos_cliente["correo"] = detectar_correo(parte)
+                elif "departamento" in parte.lower():
+                    datos_cliente["departamento"] = parte.split(":")[-1].strip()
+                elif "ciudad" in parte.lower():
+                    datos_cliente["ciudad"] = parte.split(":")[-1].strip()
+                elif "direccion" in parte.lower():
+                    datos_cliente["direccion"] = parte.split(":")[-1].strip()
+
+            faltantes = [k for k in ["cedula", "nombre", "telefono", "correo", "departamento", "ciudad", "direccion"] if k not in datos_cliente]
+            if faltantes:
+                return str(MessagingResponse().message(f"⚠️ Aún faltan los siguientes datos: {', '.join(faltantes)}. Por favor escríbelos para continuar."))
+            else:
+                try:
+                    insertar_o_actualizar_cliente(datos_cliente)
+                    estado["fase"] = "esperando_prendas"
+                    return str(MessagingResponse().message("✅ Datos registrados correctamente.\n\nAhora dime las referencias y cantidades a separar. Por ejemplo:\n*JG456 x2*\n*RR789 x1*"))
+                except Exception as e:
+                    return str(MessagingResponse().message("❌ Hubo un problema registrando tus datos. Intenta nuevamente."))
+
+        elif fase == "esperando_prendas":
+            lineas = user_msg.strip().split('\n')
+            for linea in lineas:
+                partes = linea.strip().split()
+                for parte in partes:
+                    match = re.match(r"([A-Z0-9\-]{3,})\s*[xX]\s*(\d+)", parte)
+                    if match:
+                        ref, cantidad = match.groups()
+                        cantidad = int(cantidad)
+                        info = buscar_por_referencia(ref, "")
+                        if "agotada" not in info.lower():
+                            precio = 40000  # puedes hacer un SELECT real aquí si lo deseas
+                            prendas.append({"ref": ref.upper(), "cantidad": cantidad, "precio": precio})
+
+            if not prendas:
+                return str(MessagingResponse().message("❌ No detecté prendas válidas para separar. Por favor escribe en formato como:\n*JG456 x2*"))
+
+            estado["fase"] = "esperando_envio"
+            return str(MessagingResponse().message("📝 ¿Tienes alguna observación especial para este pedido?\n\nY dime si será *recojo en local* o *envío a domicilio*."))
+
+        elif fase == "esperando_envio":
+            estado["observaciones"] = user_msg
+            estado["fase"] = "esperando_medio_conocimiento"
+            return str(MessagingResponse().message(
+                "📣 ¿Cómo nos conociste? Elige una opción:\n\n"
+                "- Pauta Publicitaria\n- Redes Sociales\n- Cliente Frecuente\n- Punto Físico\n- Boca a Boca\n- Email Marketing\n- Eventos o Ferias\n- Promociones en Línea\n- Otros"
+            ))
+
+        elif fase == "esperando_medio_conocimiento":
+            opciones_validas = ["Pauta Publicitaria", "Redes Sociales", "Cliente Frecuente", "Punto Físico", "Boca a Boca", "Email Marketing", "Eventos o Ferias", "Promociones en Línea", "Otros"]
+            medio = user_msg.strip()
+            if medio not in opciones_validas:
+                return str(MessagingResponse().message("❌ Esa opción no es válida. Por favor responde con una de las opciones mencionadas."))
+            estado["medio_conocimiento"] = medio
+            estado["fase"] = "confirmacion_final"
+
+            resumen = "\n".join([f"- *{p['ref']}* x{p['cantidad']}" for p in prendas])
+            return str(MessagingResponse().message(
+                f"✅ ¡Perfecto! Aquí tienes el resumen del pedido:\n\n👤 Cliente: *{datos_cliente['nombre']}*\n🧾 Cédula: *{datos_cliente['cedula']}*\n📦 Prendas:\n{resumen}\n\n📍 Observaciones: {estado['observaciones']}\n📣 Medio: {medio}\n\n¿Deseas confirmar el pedido? Responde *sí* para proceder o *no* para cancelar."
+            ))
+
+        elif fase == "confirmacion_final":
+            if "sí" in user_msg.lower():
+                insertar_pedido_y_detalle(
+                    datos_cliente["cedula"],
+                    prendas,
+                    envio=estado["observaciones"],
+                    observaciones=estado["observaciones"],
+                    medio_conocimiento=estado["medio_conocimiento"]
+                )
+                del estado_pedidos[sender_number]
+                return str(MessagingResponse().message("🎉 ¡Tu pedido ha sido registrado exitosamente! Muchas gracias por comprar en Dulce Guadalupe. Te avisaremos cualquier novedad. 💖"))
+            else:
+                del estado_pedidos[sender_number]
+                return str(MessagingResponse().message("🛑 Pedido cancelado. Si deseas volver a intentarlo, solo escríbeme. Estoy aquí para ayudarte 💬"))
+
+        # Si no se reconoció ninguna fase
+        return str(MessagingResponse().message("⚠️ Estoy procesando tu pedido. Si algo sale mal, por favor escribe *cancelar pedido* para reiniciar."))
+
+
     # 🔸 Nuevo manejo para contenido multimedia
     if num_medias > 0:
         datos_cliente = recuperar_cliente_info(sender_number)
@@ -415,7 +591,8 @@ def webhook():
 
         nombre_usuario = f"{nombre}," if nombre else ""
         
-
+        # WEBHOOK PEDIDOS
+        
         # Actualizar cliente si detectó algo
         if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
