@@ -448,7 +448,7 @@ def webhook():
     respuestas = []
     ai_response = ""
 
-    # 🛒 ACTIVAR FLUJO DE PEDIDO (SEPARADO)
+    # 🛒 ACTIVAR FLUJO DE PEDIDO
     if any(palabra in lower_msg for palabra in ["separar", "separado", "quiero hacer un pedido", "quiero apartar", "quiero comprar", "quiero separar", "puedo separar", "deseo hacer pedido", "quiero pedir"]):
         estado_pedidos[sender_number] = {
             "fase": "esperando_datos",
@@ -456,6 +456,7 @@ def webhook():
             "prendas": [],
             "observaciones": "",
             "medio_conocimiento": "",
+            "tipo_cliente": "",
         }
         return str(MessagingResponse().message(
             "📝 ¡Perfecto! Vamos a registrar tu pedido.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
@@ -463,7 +464,7 @@ def webhook():
             "Puedes enviarlos todos juntos o por partes. 🫶"
         ))
 
-   
+    # 🔄 CONTINUACIÓN DEL FLUJO
     if sender_number in estado_pedidos:
         estado = estado_pedidos[sender_number]
         fase = estado["fase"]
@@ -494,30 +495,68 @@ def webhook():
             else:
                 try:
                     insertar_o_actualizar_cliente(datos_cliente)
-                    estado["fase"] = "esperando_prendas"
-                    return str(MessagingResponse().message("✅ Datos registrados correctamente.\n\nAhora dime las referencias y cantidades a separar. Por ejemplo:\n*JG456 x2*\n*RR789 x1*"))
+                    estado["fase"] = "esperando_tipo_cliente"
+                    return str(MessagingResponse().message(
+                        "🤔 Antes de continuar, ¿compras al *detal* o como *mayorista*?\n\n"
+                        "🔸 *IMPORTANTE*: Esta información será verificada antes de confirmar el pedido."
+                    ))
                 except Exception as e:
                     return str(MessagingResponse().message("❌ Hubo un problema registrando tus datos. Intenta nuevamente."))
 
+        elif fase == "esperando_tipo_cliente":
+            tipo = lower_msg.strip()
+            if "mayor" in tipo:
+                estado["tipo_cliente"] = "mayorista"
+            elif "detal" in tipo:
+                estado["tipo_cliente"] = "detal"
+            else:
+                return str(MessagingResponse().message(
+                    "❌ No entendí tu respuesta. Por favor indica si eres *mayorista* o compras al *detal*."
+                ))
+            estado["fase"] = "esperando_prendas"
+            return str(MessagingResponse().message(
+                "✅ ¡Perfecto! Ahora dime las referencias y cantidades a separar. Por ejemplo:\n*JG456 x2*\n*RR789 x1*"
+            ))
+
         elif fase == "esperando_prendas":
             lineas = user_msg.strip().split('\n')
+            nuevas_prendas = []
             for linea in lineas:
-                partes = linea.strip().split()
-                for parte in partes:
-                    match = re.match(r"([A-Z0-9\-]{3,})\s*[xX]\s*(\d+)", parte)
-                    if match:
-                        ref, cantidad = match.groups()
-                        cantidad = int(cantidad)
-                        info = buscar_por_referencia(ref, "")
-                        if "agotada" not in info.lower():
-                            precio = 40000  # puedes hacer un SELECT real aquí si lo deseas
-                            prendas.append({"ref": ref.upper(), "cantidad": cantidad, "precio": precio})
+                match = re.match(r"([A-Z0-9\-]{3,})\s*[xX]\s*(\d+)", linea.strip(), re.IGNORECASE)
+                if match:
+                    ref, cantidad = match.groups()
+                    cantidad = int(cantidad)
 
-            if not prendas:
-                return str(MessagingResponse().message("❌ No detecté prendas válidas para separar. Por favor escribe en formato como:\n*JG456 x2*"))
+                    # Obtener precios desde BD según ref
+                    conn = psycopg2.connect(
+                        host=os.getenv("PG_HOST"),
+                        dbname=os.getenv("PG_DB"),
+                        user=os.getenv("PG_USER"),
+                        password=os.getenv("PG_PASSWORD"),
+                        port=os.getenv("PG_PORT", "5432")
+                    )
+                    cur = conn.cursor()
+                    cur.execute("""
+                        SELECT precio_al_detal, precio_por_mayor FROM inventario
+                        WHERE ref = %s
+                        LIMIT 1
+                    """, (ref.upper(),))
+                    resultado = cur.fetchone()
+                    cur.close()
+                    conn.close()
 
+                    if resultado:
+                        precio = resultado[1] if estado["tipo_cliente"] == "mayorista" else resultado[0]
+                        nuevas_prendas.append({"ref": ref.upper(), "cantidad": cantidad, "precio": precio})
+
+            if not nuevas_prendas:
+                return str(MessagingResponse().message("❌ No detecté prendas válidas. Usa el formato *REF x CANTIDAD*"))
+
+            estado["prendas"].extend(nuevas_prendas)
             estado["fase"] = "esperando_envio"
-            return str(MessagingResponse().message("📝 ¿Tienes alguna observación especial para este pedido?\n\nY dime si será *recojo en local* o *envío a domicilio*."))
+            return str(MessagingResponse().message(
+                "📝 ¿Tienes alguna observación especial para este pedido?\n\nY dime si será *recojo en local* o *envío a domicilio*."
+            ))
 
         elif fase == "esperando_envio":
             estado["observaciones"] = user_msg
@@ -528,20 +567,26 @@ def webhook():
             ))
 
         elif fase == "esperando_medio_conocimiento":
-            opciones_validas = ["Pauta Publicitaria", "Redes Sociales", "Cliente Frecuente", "Punto Físico", "Boca a Boca", "Email Marketing", "Eventos o Ferias", "Promociones en Línea", "Otros"]
+            opciones_validas = [
+                "Pauta Publicitaria", "Redes Sociales", "Cliente Frecuente", "Punto Físico",
+                "Boca a Boca", "Email Marketing", "Eventos o Ferias", "Promociones en Línea", "Otros"
+            ]
             medio = user_msg.strip()
             if medio not in opciones_validas:
-                return str(MessagingResponse().message("❌ Esa opción no es válida. Por favor responde con una de las opciones mencionadas."))
+                return str(MessagingResponse().message("❌ Esa opción no es válida. Responde con una de las opciones mencionadas."))
             estado["medio_conocimiento"] = medio
             estado["fase"] = "confirmacion_final"
 
             resumen = "\n".join([f"- *{p['ref']}* x{p['cantidad']}" for p in prendas])
             return str(MessagingResponse().message(
-                f"✅ ¡Perfecto! Aquí tienes el resumen del pedido:\n\n👤 Cliente: *{datos_cliente['nombre']}*\n🧾 Cédula: *{datos_cliente['cedula']}*\n📦 Prendas:\n{resumen}\n\n📍 Observaciones: {estado['observaciones']}\n📣 Medio: {medio}\n\n¿Deseas confirmar el pedido? Responde *sí* para proceder o *no* para cancelar."
+                f"✅ ¡Perfecto! Aquí tienes el resumen del pedido:\n\n"
+                f"👤 Cliente: *{datos_cliente['nombre']}*\n🧾 Cédula: *{datos_cliente['cedula']}*\n📦 Prendas:\n{resumen}\n\n"
+                f"📍 Observaciones: {estado['observaciones']}\n📣 Medio: {medio}\n\n"
+                f"¿Deseas confirmar el pedido? Responde *sí* para proceder o *no* para cancelar."
             ))
 
         elif fase == "confirmacion_final":
-            if "sí" in user_msg.lower():
+            if "sí" in lower_msg:
                 insertar_pedido_y_detalle(
                     datos_cliente["cedula"],
                     prendas,
@@ -555,8 +600,9 @@ def webhook():
                 del estado_pedidos[sender_number]
                 return str(MessagingResponse().message("🛑 Pedido cancelado. Si deseas volver a intentarlo, solo escríbeme. Estoy aquí para ayudarte 💬"))
 
-        # Si no se reconoció ninguna fase
-        return str(MessagingResponse().message("⚠️ Estoy procesando tu pedido. Si algo sale mal, por favor escribe *cancelar pedido* para reiniciar."))
+        # Fallback si fase no se reconoce
+        return str(MessagingResponse().message("⚠️ Estoy procesando tu pedido. Si algo sale mal, escribe *cancelar pedido* para reiniciar."))
+
 
 
     # 🔸 Nuevo manejo para contenido multimedia
@@ -609,11 +655,56 @@ def webhook():
         if match_ref or ref_link_detectada:
             ref_encontrada = match_ref.group().upper() if match_ref else ref_link_detectada
             ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
+            
+            # Insertar mensajes al historial
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
+
+            # Consultar precio real desde BD
+            conn = psycopg2.connect(
+                host=os.getenv("PG_HOST"),
+                dbname=os.getenv("PG_DB"),
+                user=os.getenv("PG_USER"),
+                password=os.getenv("PG_PASSWORD"),
+                port=os.getenv("PG_PORT", "5432")
+            )
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT precio_al_detal, precio_por_mayor FROM inventario
+                WHERE ref = %s
+                LIMIT 1
+            """, (ref_encontrada.upper(),))
+            resultado = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            if resultado:
+                precio = resultado[0]  # Por ahora, al detal. Se ajustará luego según si es mayorista.
+            else:
+                precio = 0  # Fallback si no encontró nada
+            
+            # 👉 AÑADIR DETECCIÓN DE INTENCIÓN DE SEPARAR
+            if any(palabra in lower_msg for palabra in ["separarla", "separar esta", "quiero separarla", "quiero pedirla", "quiero comprarla", "quiero apartarla", "quiero esta"]):
+                estado_pedidos[sender_number] = {
+                    "fase": "esperando_datos",
+                    "datos_cliente": {},
+                    "prendas": [{"ref": ref_encontrada, "cantidad": 1, "precio": precio}],
+                    "observaciones": "",
+                    "medio_conocimiento": "",
+                }
+                twilio_response = MessagingResponse()
+                twilio_response.message(ai_response)
+                twilio_response.message(
+                    "📝 ¡Genial! Vamos a registrar tu pedido con esta prenda.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
+                    "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
+                    "Puedes enviarlos todos juntos o por partes. 🫶"
+                )
+                return str(twilio_response)
+
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
             return str(twilio_response)
+
 
 
 
