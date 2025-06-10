@@ -614,12 +614,8 @@ def webhook():
     insertar_mensaje(sender_number, "assistant", ai_response)
 
     twilio_response = MessagingResponse()
-    if respuestas:
-        twilio_response.message("\n\n".join(respuestas))
-    if ai_response:
-        twilio_response.message(ai_response)
+    twilio_response.message(ai_response)
     return str(twilio_response)
-
 
 
 # 🔹 Home route para verificar que está viva
