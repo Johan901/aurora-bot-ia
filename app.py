@@ -428,41 +428,42 @@ def webhook():
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
 
-    datos_cliente = recuperar_cliente_info(sender_number)
-    nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
+    respuestas = []
+    ai_response = ""
 
-    twilio_response = MessagingResponse()
-
-    # ⏱ OCR primero siempre
+    # 🔹 Procesar imágenes si hay
     if num_medias > 0:
-        for i in range(num_medias):
-            media_url = request.form.get(f"MediaUrl{i}")
-            media_type = request.form.get(f"MediaContentType{i}")
+        try:
+            datos_cliente = recuperar_cliente_info(sender_number)
+            nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
-            if media_url and media_type and media_type.startswith("image/"):
-                try:
+            for i in range(num_medias):
+                media_url = request.form.get(f"MediaUrl{i}")
+                media_type = request.form.get(f"MediaContentType{i}")
+
+                if media_url and media_type and media_type.startswith("image/"):
                     ruta_img = descargar_imagen_twilio(media_url)
-                    ref_ocr, respuesta_ocr = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
-
-                    # Guarda mensajes
+                    ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
-                    insertar_mensaje(sender_number, "assistant", respuesta_ocr)
+                    insertar_mensaje(sender_number, "assistant", respuesta)
 
-                    # 🛑 Prioriza imagen y responde en caliente
-                    twilio_response.message(respuesta_ocr)
+                    # ⛔️ RESPONDE DE UNA Y SALTE, NO SIGAS EVALUANDO Body
+                    twilio_response = MessagingResponse()
+                    twilio_response.message(respuesta)
                     return str(twilio_response)
 
-                except Exception as e:
-                    error_trace = traceback.format_exc()
-                    error_msg = f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```"
-                    insertar_mensaje(sender_number, "assistant", error_msg)
-                    twilio_response.message(error_msg)
-                    return str(twilio_response)
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            print(f"[ERROR MULTI-IMAGEN]: {error_trace}")
+            twilio_response = MessagingResponse()
+            twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
+            return str(twilio_response)
 
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
         primera_vez = len(historial) == 0
+
         lower_msg = user_msg.lower()
         # 🔍 Verificar si están preguntando por una referencia
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
@@ -614,8 +615,12 @@ def webhook():
     insertar_mensaje(sender_number, "assistant", ai_response)
 
     twilio_response = MessagingResponse()
-    twilio_response.message(ai_response)
+    if respuestas:
+        twilio_response.message("\n\n".join(respuestas))
+    if ai_response:
+        twilio_response.message(ai_response)
     return str(twilio_response)
+
 
 
 # 🔹 Home route para verificar que está viva
