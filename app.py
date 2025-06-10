@@ -424,6 +424,8 @@ def descargar_imagen_twilio(media_url):
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    print("📩 Mensaje recibido:")
+    print(request.form.to_dict())
     user_msg = (request.form.get("Body") or "").strip()
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
@@ -446,6 +448,9 @@ def webhook():
                     ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
                     insertar_mensaje(sender_number, "assistant", respuesta)
+
+                    print("📸 OCR Detectado:", ref_ocr, respuesta)
+
 
                     # ⛔️ RESPONDE DE UNA Y SALTE, NO SIGAS EVALUANDO Body
                     twilio_response = MessagingResponse()
