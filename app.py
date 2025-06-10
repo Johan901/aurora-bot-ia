@@ -444,15 +444,21 @@ def webhook():
                 if media_url and media_type and media_type.startswith("image/"):
                     ruta_img = descargar_imagen_twilio(media_url)
                     ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
-                    respuestas.append(respuesta)
-
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
                     insertar_mensaje(sender_number, "assistant", respuesta)
+
+                    # ⛔️ RESPONDE DE UNA Y SALTE, NO SIGAS EVALUANDO Body
+                    twilio_response = MessagingResponse()
+                    twilio_response.message(respuesta)
+                    return str(twilio_response)
 
         except Exception as e:
             error_trace = traceback.format_exc()
             print(f"[ERROR MULTI-IMAGEN]: {error_trace}")
-            respuestas.append(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
+            twilio_response = MessagingResponse()
+            twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
+            return str(twilio_response)
+
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
