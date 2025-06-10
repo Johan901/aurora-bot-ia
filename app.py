@@ -474,19 +474,21 @@ def webhook():
         if fase == "esperando_datos":
             partes = user_msg.strip().split('\n')
             for parte in partes:
-                if "cedula" in parte.lower():
+                texto = parte.lower().strip()
+
+                if "cedula" in texto or (texto.isdigit() and 8 <= len(texto) <= 11):
                     datos_cliente["cedula"] = ''.join(filter(str.isdigit, parte))
-                elif "nombre" in parte.lower():
+                elif "nombre" in texto:
                     datos_cliente["nombre"] = parte.split(":")[-1].strip()
-                elif "telefono" in parte.lower():
+                elif "telefono" in texto or ("tel" in texto and any(c.isdigit() for c in texto)):
                     datos_cliente["telefono"] = ''.join(filter(str.isdigit, parte))
-                elif "correo" in parte.lower() or "email" in parte.lower():
+                elif "correo" in texto or "email" in texto or "@" in texto:
                     datos_cliente["correo"] = detectar_correo(parte)
-                elif "departamento" in parte.lower():
+                elif "departamento" in texto:
                     datos_cliente["departamento"] = parte.split(":")[-1].strip()
-                elif "ciudad" in parte.lower():
+                elif "ciudad" in texto:
                     datos_cliente["ciudad"] = parte.split(":")[-1].strip()
-                elif "direccion" in parte.lower():
+                elif "direccion" in texto:
                     datos_cliente["direccion"] = parte.split(":")[-1].strip()
 
             faltantes = [k for k in ["cedula", "nombre", "telefono", "correo", "departamento", "ciudad", "direccion"] if k not in datos_cliente]
@@ -502,6 +504,7 @@ def webhook():
                     ))
                 except Exception as e:
                     return str(MessagingResponse().message("❌ Hubo un problema registrando tus datos. Intenta nuevamente."))
+
 
         elif fase == "esperando_tipo_cliente":
             tipo = lower_msg.strip()
