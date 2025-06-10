@@ -344,73 +344,6 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 ¿Te gustaría que te ayude a hacer tu primer pedido? 🛍️ Estoy aquí para acompañarte. 💫"""
 
 
-# Leemos mediante OCR REF desde imagen del cliente
-def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
-    try:
-        img = cv2.imread(ruta_imagen)
-        if img is None:
-            raise ValueError("No se pudo leer la imagen")
-
-        h, w = img.shape[:2]
-        margen = 180
-        offset = 80  # subesquinas
-
-        regiones = {
-            "sup_izq": img[0:margen, 0:margen],
-            "sup_der": img[0:margen, w-margen:w],
-            "inf_izq": img[h-margen:h, 0:margen],
-            "inf_der": img[h-margen:h, w-margen:w],
-            "sub_sup_izq": img[offset:offset+margen, offset:offset+margen],
-            "sub_sup_der": img[offset:offset+margen, w-offset-margen:w-offset],
-            "sub_inf_izq": img[h-offset-margen:h-offset, offset:offset+margen],
-            "sub_inf_der": img[h-offset-margen:h-offset, w-offset-margen:w-offset],
-        }
-
-        posibles_refs = []
-        for nombre, region in regiones.items():
-            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
-            procesada = cv2.adaptiveThreshold(
-                gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                cv2.THRESH_BINARY_INV, 11, 8
-            )
-            texto = pytesseract.image_to_string(procesada, lang="eng+spa")
-            matches = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
-            posibles_refs.extend(matches)
-
-        posibles_refs = list(dict.fromkeys(posibles_refs))  # quitar duplicados
-
-        for ref in posibles_refs:
-            respuesta = buscar_por_referencia(ref, nombre_usuario)
-            if "agotada" not in respuesta.lower():
-                respuesta = re.sub(
-                r"tenemos disponible la\(s\) referencia\(s\) similar\(es\) a \*\*?([A-Z]{2,4}\d{2,4})\*\*?",
-                r"La referencia **\1** está disponible en los siguientes colores:",
-                respuesta,
-                flags=re.IGNORECASE
-            )
-            return ref, respuesta
-
-
-        if posibles_refs:
-            ref_agotada = posibles_refs[0]
-            mensaje = (
-                f"{nombre_usuario} encontré la referencia *{ref_agotada}*, "
-                "pero está *agotada* 😞.\n\n"
-                "¿Quieres que te recomiende algo igual de hermoso? 💖✨"
-            )
-            return ref_agotada, mensaje
-
-        return None, (
-            f"No encontré referencias claras en la imagen {nombre_usuario} 😕.\n"
-            "¿Podrías tomar otra foto enfocando bien la referencia blanca? 💖📸"
-        )
-
-    except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"[ERROR OCR Mejorado] {error_trace}")
-        return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
-
-
 # Descargar imagen a disco temporal
 def descargar_imagen_twilio(media_url):
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
@@ -430,55 +363,19 @@ def webhook():
 
     respuestas = []
     ai_response = ""
-
-    # 🔹 Procesar imágenes si hay
+    # 🔸 Nuevo manejo para contenido multimedia
     if num_medias > 0:
-        try:
-            datos_cliente = recuperar_cliente_info(sender_number)
-            nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
+        datos_cliente = recuperar_cliente_info(sender_number)
+        nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
-            for i in range(num_medias):
-                media_url = request.form.get(f"MediaUrl{i}")
-                media_type = request.form.get(f"MediaContentType{i}")
-
-                if media_url and media_type and media_type.startswith("image/"):
-                    ruta_img = descargar_imagen_twilio(media_url)
-                    resultado = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
-
-                    print(f"[🧠 OCR resultado]: {resultado}")
-
-                    # Validación estricta del resultado
-                    if not resultado or not isinstance(resultado, tuple) or len(resultado) != 2:
-                        ref_ocr, respuesta = None, (
-                            f"No pude procesar bien la imagen {nombre_usuario} 😥.\n"
-                            "¿Podrías enviarla de nuevo con mejor foco o luz? 📷"
-                        )
-                    else:
-                        ref_ocr, respuesta = resultado
-
-                        if not ref_ocr:
-                            respuesta = (
-                                f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\n"
-                                "Intenta con otra foto enfocando bien la etiqueta. 💡"
-                            )
-
-                    # Guarda el mensaje como imagen recibida y la respuesta del bot
-                    insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
-                    insertar_mensaje(sender_number, "assistant", respuesta)
-
-                    # RESPONDE de inmediato y no evalúa el texto
-                    twilio_response = MessagingResponse()
-                    twilio_response.message(respuesta)
-                    return str(twilio_response)
-
-        except Exception as e:
-            error_trace = traceback.format_exc()
-            print(f"[❌ ERROR OCR]: {error_trace}")
-            twilio_response = MessagingResponse()
-            twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
-            return str(twilio_response)
-
-
+        twilio_response = MessagingResponse()
+        twilio_response.message(
+            f"Hola {nombre_usuario} 💖 Para ayudarte con el producto correcto, por favor compárteme el *enlace del catálogo oficial*.\n\n"
+            "✅ Ingresa al catálogo:\nhttps://dulceguadalupe-catalogo.ecometri.shop\n"
+            "📦 Selecciona la prenda que deseas\n🔗 Presiona *Compartir* y envíame ese link aquí.\n\n"
+            "Así podré ver exactamente la referencia y ayudarte a separar o verificar disponibilidad 🛍️✨"
+        )
+        return str(twilio_response)
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
