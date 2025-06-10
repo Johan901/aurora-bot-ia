@@ -455,9 +455,10 @@ def webhook():
                     insertar_mensaje(sender_number, "assistant", respuesta)
 
                     # ⛔️ RESPONDE DE UNA Y SALTE, NO SIGAS EVALUANDO Body
-                    twilio_response = MessagingResponse()
-                    twilio_response.message(respuesta)
-                    return str(twilio_response)
+            if respuesta:
+                twilio_response = MessagingResponse()
+                twilio_response.message(respuesta)
+                return str(twilio_response)
 
         except Exception as e:
             error_trace = traceback.format_exc()
