@@ -428,11 +428,12 @@ def webhook():
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
 
-    # ✅ Este bloque ahora se ejecuta también si hay texto y media
+    respuestas = []
+    ai_response = ""
+
+    # 🔹 Procesar imágenes si hay
     if num_medias > 0:
         try:
-            respuestas = []
-
             datos_cliente = recuperar_cliente_info(sender_number)
             nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
@@ -448,20 +449,10 @@ def webhook():
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
                     insertar_mensaje(sender_number, "assistant", respuesta)
 
-            twilio_response = MessagingResponse()
-            twilio_response.message("\n\n".join(respuestas))
-            return str(twilio_response)
-
         except Exception as e:
             error_trace = traceback.format_exc()
             print(f"[ERROR MULTI-IMAGEN]: {error_trace}")
-            ai_response = f"⚠️ Ocurrió un error procesando las imágenes:\n```{str(e)}```"
-            insertar_mensaje(sender_number, "assistant", ai_response)
-            twilio_response = MessagingResponse()
-            twilio_response.message(ai_response)
-            return str(twilio_response)
-
-
+            respuestas.append(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
@@ -622,8 +613,12 @@ def webhook():
     insertar_mensaje(sender_number, "assistant", ai_response)
 
     twilio_response = MessagingResponse()
-    twilio_response.message(ai_response)
+    if respuestas:
+        twilio_response.message("\n\n".join(respuestas))
+    if ai_response:
+        twilio_response.message(ai_response)
     return str(twilio_response)
+
 
 
 # 🔹 Home route para verificar que está viva
