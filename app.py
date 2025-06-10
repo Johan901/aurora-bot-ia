@@ -444,28 +444,40 @@ def webhook():
                 if media_url and media_type and media_type.startswith("image/"):
                     ruta_img = descargar_imagen_twilio(media_url)
                     resultado = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
-                    if resultado is None or not isinstance(resultado, tuple) or len(resultado) != 2:
-                        ref_ocr, respuesta = None, f"No pude procesar la imagen correctamente {nombre_usuario} 😥.\n¿Podrías intentar enviarla de nuevo con mejor luz o foco? 📷"
+
+                    print(f"[🧠 OCR resultado]: {resultado}")
+
+                    # Validación estricta del resultado
+                    if not resultado or not isinstance(resultado, tuple) or len(resultado) != 2:
+                        ref_ocr, respuesta = None, (
+                            f"No pude procesar bien la imagen {nombre_usuario} 😥.\n"
+                            "¿Podrías enviarla de nuevo con mejor foco o luz? 📷"
+                        )
                     else:
                         ref_ocr, respuesta = resultado
-                        if not respuesta:
-                            respuesta = f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\nIntenta con otra foto enfocando bien la etiqueta. 💡"
-                    
+
+                        if not ref_ocr:
+                            respuesta = (
+                                f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\n"
+                                "Intenta con otra foto enfocando bien la etiqueta. 💡"
+                            )
+
+                    # Guarda el mensaje como imagen recibida y la respuesta del bot
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
                     insertar_mensaje(sender_number, "assistant", respuesta)
 
-                    # ⛔️ RESPONDE DE UNA Y SALTE, NO SIGAS EVALUANDO Body
-            if respuesta:
-                twilio_response = MessagingResponse()
-                twilio_response.message(respuesta)
-                return str(twilio_response)
+                    # RESPONDE de inmediato y no evalúa el texto
+                    twilio_response = MessagingResponse()
+                    twilio_response.message(respuesta)
+                    return str(twilio_response)
 
         except Exception as e:
             error_trace = traceback.format_exc()
-            print(f"[ERROR MULTI-IMAGEN]: {error_trace}")
+            print(f"[❌ ERROR OCR]: {error_trace}")
             twilio_response = MessagingResponse()
             twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
             return str(twilio_response)
+
 
 
     try:
