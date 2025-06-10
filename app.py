@@ -424,51 +424,45 @@ def descargar_imagen_twilio(media_url):
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    print("📩 Mensaje recibido:")
-    print(request.form.to_dict())
     user_msg = (request.form.get("Body") or "").strip()
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
 
-    respuestas = []
-    ai_response = ""
+    datos_cliente = recuperar_cliente_info(sender_number)
+    nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
-    # 🔹 Procesar imágenes si hay
+    twilio_response = MessagingResponse()
+
+    # ⏱ OCR primero siempre
     if num_medias > 0:
-        try:
-            datos_cliente = recuperar_cliente_info(sender_number)
-            nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
+        for i in range(num_medias):
+            media_url = request.form.get(f"MediaUrl{i}")
+            media_type = request.form.get(f"MediaContentType{i}")
 
-            for i in range(num_medias):
-                media_url = request.form.get(f"MediaUrl{i}")
-                media_type = request.form.get(f"MediaContentType{i}")
-
-                if media_url and media_type and media_type.startswith("image/"):
+            if media_url and media_type and media_type.startswith("image/"):
+                try:
                     ruta_img = descargar_imagen_twilio(media_url)
-                    ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+                    ref_ocr, respuesta_ocr = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+
+                    # Guarda mensajes
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
-                    insertar_mensaje(sender_number, "assistant", respuesta)
+                    insertar_mensaje(sender_number, "assistant", respuesta_ocr)
 
-                    print("📸 OCR Detectado:", ref_ocr, respuesta)
-
-
-                    # ⛔️ RESPONDE DE UNA Y SALTE, NO SIGAS EVALUANDO Body
-                    twilio_response = MessagingResponse()
-                    twilio_response.message(respuesta)
+                    # 🛑 Prioriza imagen y responde en caliente
+                    twilio_response.message(respuesta_ocr)
                     return str(twilio_response)
 
-        except Exception as e:
-            error_trace = traceback.format_exc()
-            print(f"[ERROR MULTI-IMAGEN]: {error_trace}")
-            twilio_response = MessagingResponse()
-            twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
-            return str(twilio_response)
+                except Exception as e:
+                    error_trace = traceback.format_exc()
+                    error_msg = f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```"
+                    insertar_mensaje(sender_number, "assistant", error_msg)
+                    twilio_response.message(error_msg)
+                    return str(twilio_response)
 
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
         primera_vez = len(historial) == 0
-
         lower_msg = user_msg.lower()
         # 🔍 Verificar si están preguntando por una referencia
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
