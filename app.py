@@ -365,14 +365,6 @@ def extraer_ref_desde_link_catalogo(texto):
     return None
 
 estado_pedidos = {}
-estado_pedidos[sender_number] = {
-    "fase": "esperando_datos",  # o: "esperando_prendas", "esperando_envio", etc.
-    "datos_cliente": {},
-    "prendas": [],
-    "observaciones": "",
-    "medio_conocimiento": "",
-}
-
 
 # FLUJO DE SEPARADOS
 # Nª1 DATOS CLIENTE
@@ -449,11 +441,28 @@ def insertar_pedido_y_detalle(cedula, prendas, envio, observaciones, medio_conoc
 @app.route("/webhook", methods=["POST"])
 def webhook():
     user_msg = (request.form.get("Body") or "").strip()
+    lower_msg = user_msg.lower()
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
 
     respuestas = []
     ai_response = ""
+
+    # 🛒 ACTIVAR FLUJO DE PEDIDO (SEPARADO)
+    if any(palabra in lower_msg for palabra in ["separar", "separado", "quiero hacer un pedido", "quiero apartar", "quiero comprar", "quiero separar", "puedo separar", "deseo hacer pedido", "quiero pedir"]):
+        estado_pedidos[sender_number] = {
+            "fase": "esperando_datos",
+            "datos_cliente": {},
+            "prendas": [],
+            "observaciones": "",
+            "medio_conocimiento": "",
+        }
+        return str(MessagingResponse().message(
+            "📝 ¡Perfecto! Vamos a registrar tu pedido.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
+            "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
+            "Puedes enviarlos todos juntos o por partes. 🫶"
+        ))
+
    
     if sender_number in estado_pedidos:
         estado = estado_pedidos[sender_number]
@@ -568,7 +577,6 @@ def webhook():
         historial = recuperar_historial(sender_number, limite=15)
         primera_vez = len(historial) == 0
 
-        lower_msg = user_msg.lower()
         # 🔍 Verificar si están preguntando por una referencia
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
         match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
