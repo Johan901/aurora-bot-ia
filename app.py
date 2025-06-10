@@ -354,6 +354,17 @@ def descargar_imagen_twilio(media_url):
         f.write(response.content)
     return ruta
 
+# Ver ref por links
+def extraer_ref_desde_link_catalogo(texto):
+    patron_url = r"https:\/\/dulceguadalupe-catalogo\.ecometri\.shop\/\d+\/([a-zA-Z0-9\-]+)"
+    match = re.search(patron_url, texto)
+    if match:
+        ref_completa = match.group(1)  # jg567-cb5a7b
+        ref = ref_completa.split('-')[0]  # jg567
+        return ref.upper()
+    return None
+
+
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -385,6 +396,8 @@ def webhook():
         # 🔍 Verificar si están preguntando por una referencia
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
         match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
+        ref_link_detectada = extraer_ref_desde_link_catalogo(user_msg)
+
 
         #Prendas
         posibles_prendas = ["conjunto", "vestido", "body", "blusa", "falda"]
@@ -408,14 +421,15 @@ def webhook():
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
 
 
-        if match_ref:
-            ref_encontrada = match_ref.group().upper()
+        if match_ref or ref_link_detectada:
+            ref_encontrada = match_ref.group().upper() if match_ref else ref_link_detectada
             ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
             return str(twilio_response)
+
 
 
 
