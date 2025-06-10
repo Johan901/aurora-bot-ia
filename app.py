@@ -443,7 +443,14 @@ def webhook():
 
                 if media_url and media_type and media_type.startswith("image/"):
                     ruta_img = descargar_imagen_twilio(media_url)
-                    ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+                    resultado = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+                    if resultado is None or not isinstance(resultado, tuple) or len(resultado) != 2:
+                        ref_ocr, respuesta = None, f"No pude procesar la imagen correctamente {nombre_usuario} 😥.\n¿Podrías intentar enviarla de nuevo con mejor luz o foco? 📷"
+                    else:
+                        ref_ocr, respuesta = resultado
+                        if not respuesta:
+                            respuesta = f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\nIntenta con otra foto enfocando bien la etiqueta. 💡"
+                    
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
                     insertar_mensaje(sender_number, "assistant", respuesta)
 
