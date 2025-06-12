@@ -41,7 +41,10 @@ def detectar_nombre(texto):
 
     # Si solo escribe el nombre
     if texto.isalpha() and len(texto) <= 20:
-        return texto.capitalize()
+        saludos_comunes = ["hola", "buenas", "buenosdias", "buenasdias", "buenastardes", "buenosdías", "buenastardes", "buenasnoches"]
+        if texto not in saludos_comunes:
+            return texto.capitalize()
+
 
     # Intento por estructura: "Hola, Juan"
     match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
