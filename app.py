@@ -447,6 +447,7 @@ def webhook():
 
     respuestas = []
     ai_response = ""
+    
 
     # 🛒 ACTIVAR FLUJO DE PEDIDO
     if any(palabra in lower_msg for palabra in ["separar", "separado", "quiero hacer un pedido", "quiero apartar", "quiero comprar", "quiero separar", "puedo separar", "deseo hacer pedido", "quiero pedir"]):
@@ -737,7 +738,7 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
 
-        elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "mayorista" "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
+        elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "mayorista", "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
             ai_response = responder_mayoristas(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
