@@ -443,6 +443,7 @@ def webhook():
             datos_cliente = recuperar_cliente_info(sender_number)
             nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
+            imagen_procesada = False
 
             for i in range(num_medias):
                 media_url = request.form.get(f"MediaUrl{i}")
@@ -450,33 +451,28 @@ def webhook():
 
                 if media_url and media_type and media_type.startswith("image/"):
                     ruta_img = descargar_imagen_twilio(media_url)
-                    resultado = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+                    ref_ocr, respuesta = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
 
-                    print(f"[🧠 OCR resultado]: {resultado}")
-
-                    # Validación estricta del resultado
-                    if not resultado or not isinstance(resultado, tuple) or len(resultado) != 2:
-                        ref_ocr, respuesta = None, (
-                            f"No pude procesar bien la imagen {nombre_usuario} 😥.\n"
-                            "¿Podrías enviarla de nuevo con mejor foco o luz? 📷"
+                    if not ref_ocr:
+                        respuesta = (
+                            f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\n"
+                            "Intenta con otra foto enfocando bien la etiqueta. 💡"
                         )
-                    else:
-                        ref_ocr, respuesta = resultado
 
-                        if not ref_ocr:
-                            respuesta = (
-                                f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\n"
-                                "Intenta con otra foto enfocando bien la etiqueta. 💡"
-                            )
-
-                    # Guarda el mensaje como imagen recibida y la respuesta del bot
                     insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
                     insertar_mensaje(sender_number, "assistant", respuesta)
 
-                    # RESPONDE de inmediato y no evalúa el texto
                     twilio_response = MessagingResponse()
                     twilio_response.message(respuesta)
                     return str(twilio_response)
+
+            # ✅ Ninguna imagen era válida o procesable
+            twilio_response = MessagingResponse()
+            twilio_response.message(
+                "Recibí tu mensaje, pero no pude procesar correctamente la imagen 😕.\n"
+                "Asegúrate de que sea una foto clara de la prenda o su referencia. 💡"
+            )
+            return str(twilio_response)
 
         except Exception as e:
             error_trace = traceback.format_exc()
@@ -484,6 +480,7 @@ def webhook():
             twilio_response = MessagingResponse()
             twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
             return str(twilio_response)
+
 
 
 
@@ -560,7 +557,7 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
 
-        elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "mayorista" "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
+        elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "comprar al por mayor", "emprender", "emprender con nosotros", "mayorista", "mayorista" "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
             ai_response = responder_mayoristas(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
