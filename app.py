@@ -19,6 +19,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 import re
 
+esperando_nombre = {}
 #Detectamos nombre
 def detectar_nombre(texto):
     texto = texto.strip().lower()
@@ -639,7 +640,7 @@ def webhook():
         posibles_tallas = ["xs", "s", "m", "l", "xl"]
 
         # Detección inteligente
-        nombre_detectado = detectar_nombre(user_msg)
+        nombre_detectado = detectar_nombre(user_msg) if esperando_nombre.get(sender_number) else None
         correo_detectado = detectar_correo(user_msg)
         prenda_detectada = next((p for p in posibles_prendas if p in lower_msg), None)
         talla_detectada = next((t.upper() for t in posibles_tallas if f"talla {t}" in lower_msg or f"talla: {t}" in lower_msg), None)
@@ -653,8 +654,12 @@ def webhook():
         # WEBHOOK PEDIDOS
         
         # Actualizar cliente si detectó algo
-        if nombre_detectado or prenda_detectada or talla_detectada or correo_detectado:
+        if nombre_detectado:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
+            esperando_nombre.pop(sender_number, None)
+        elif prenda_detectada or talla_detectada or correo_detectado:
+            actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado)
+
 
 
         if match_ref or ref_link_detectada:
@@ -816,6 +821,9 @@ def webhook():
         # Si no tenemos nombre guardado ni fue detectado
         if not nombre and not nombre_detectado and "tu nombre" not in user_msg.lower():
             ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
+            
+        esperando_nombre[sender_number] = True
+
 
 
     except Exception as e:
