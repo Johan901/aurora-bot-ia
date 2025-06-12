@@ -20,6 +20,8 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 import re
 
 esperando_nombre = {}
+ultima_referencia = {}
+
 #Detectamos nombre
 def detectar_nombre(texto):
     texto = texto.strip().lower()
@@ -664,6 +666,7 @@ def webhook():
 
         if match_ref or ref_link_detectada:
             ref_encontrada = match_ref.group().upper() if match_ref else ref_link_detectada
+            ultima_referencia[sender_number] = ref_encontrada  # 👉 Guardamos la última ref consultada
             ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
             
             # Insertar mensajes al historial
@@ -694,26 +697,45 @@ def webhook():
                 precio = 0  # Fallback si no encontró nada
             
             # 👉 AÑADIR DETECCIÓN DE INTENCIÓN DE SEPARAR
+            # 👉 INTENCIÓN DE SEPARAR
             if any(palabra in lower_msg for palabra in ["separarla", "separar esta", "quiero separarla", "quiero pedirla", "quiero comprarla", "quiero apartarla", "quiero esta"]):
-                estado_pedidos[sender_number] = {
-                    "fase": "esperando_datos",
-                    "datos_cliente": {},
-                    "prendas": [{"ref": ref_encontrada, "cantidad": 1, "precio": precio}],
-                    "observaciones": "",
-                    "medio_conocimiento": "",
-                }
-                twilio_response = MessagingResponse()
-                twilio_response.message(ai_response)
-                twilio_response.message(
-                    "📝 ¡Genial! Vamos a registrar tu pedido con esta prenda.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
-                    "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
-                    "Puedes enviarlos todos juntos o por partes. 🫶"
-                )
-                return str(twilio_response)
+                ref_guardada = ultima_referencia.get(sender_number)
+                if ref_guardada:
+                    # Consultar precio de la última ref guardada
+                    conn = psycopg2.connect(
+                        host=os.getenv("PG_HOST"),
+                        dbname=os.getenv("PG_DB"),
+                        user=os.getenv("PG_USER"),
+                        password=os.getenv("PG_PASSWORD"),
+                        port=os.getenv("PG_PORT", "5432")
+                    )
+                    cur = conn.cursor()
+                    cur.execute("""
+                        SELECT precio_al_detal, precio_por_mayor FROM inventario
+                        WHERE ref = %s
+                        LIMIT 1
+                    """, (ref_guardada,))
+                    resultado = cur.fetchone()
+                    cur.close()
+                    conn.close()
 
-            twilio_response = MessagingResponse()
-            twilio_response.message(ai_response)
-            return str(twilio_response)
+                    if resultado:
+                        precio = resultado[0]  # al detal
+                        estado_pedidos[sender_number] = {
+                            "fase": "esperando_datos",
+                            "datos_cliente": {},
+                            "prendas": [{"ref": ref_guardada, "cantidad": 1, "precio": precio}],
+                            "observaciones": "",
+                            "medio_conocimiento": "",
+                        }
+                        return str(MessagingResponse().message(
+                            "📝 ¡Genial! Vamos a registrar tu pedido con esta prenda.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
+                            "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
+                            "Puedes enviarlos todos juntos o por partes. 🫶"
+                        ))
+                else:
+                    return str(MessagingResponse().message("⚠️ Para ayudarte a separar una prenda necesito que primero me indiques la referencia. Envíame el enlace del catálogo o dime el código de la prenda."))
+
 
 
 
