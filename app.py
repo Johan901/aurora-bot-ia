@@ -37,8 +37,9 @@ def detectar_nombre(texto):
                 return nombre.capitalize()
 
     # Si solo escribe el nombre
-    if texto.isalpha() and texto.istitle() and len(texto) <= 20:
-        return texto.strip()
+    if texto.isalpha() and len(texto) <= 20:
+        return texto.capitalize()
+
 
     # Intento por estructura: "Hola, Juan"
     match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
