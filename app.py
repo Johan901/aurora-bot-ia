@@ -501,7 +501,7 @@ def webhook():
         posibles_tallas = ["xs", "s", "m", "l", "xl"]
 
         # Detección inteligente
-        nombre_detectado = detectar_nombre(user_msg) if esperando_nombre.get(sender_number) else None
+        nombre_detectado = detectar_nombre(user_msg)
         correo_detectado = detectar_correo(user_msg)
         prenda_detectada = next((p for p in posibles_prendas if p in lower_msg), None)
         talla_detectada = next((t.upper() for t in posibles_tallas if f"talla {t}" in lower_msg or f"talla: {t}" in lower_msg), None)
@@ -514,7 +514,7 @@ def webhook():
         
 
         # Actualizar cliente si detectó algo
-        if nombre_detectado:
+        if nombre_detectado and not nombre:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
             esperando_nombre.pop(sender_number, None)
         elif prenda_detectada or talla_detectada or correo_detectado:
