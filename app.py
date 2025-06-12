@@ -632,9 +632,14 @@ def webhook():
         ai_response = completion.choices[0].message["content"]
 
         # Si no tenemos nombre guardado ni fue detectado
-        if not nombre and not nombre_detectado and "tu nombre" not in user_msg.lower():
-            ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
-            esperando_nombre[sender_number] = True  # ACTIVAR bandera
+        # Si no se tiene nombre, y tampoco lo detectó esta vez
+        if not nombre and not nombre_detectado:
+            esperando_nombre[sender_number] = True
+            if "tu nombre" not in lower_msg:
+                if not ai_response:
+                    ai_response = "¡Hola! 😊 ¿Cómo estás?"
+                ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
+
 
 
 
