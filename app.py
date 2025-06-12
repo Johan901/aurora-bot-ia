@@ -440,9 +440,6 @@ def webhook():
             datos_cliente = recuperar_cliente_info(sender_number)
             nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
-            # 👇 Activar bandera si no tiene nombre registrado
-            if not nombre:
-                esperando_nombre[sender_number] = True
 
             for i in range(num_medias):
                 media_url = request.form.get(f"MediaUrl{i}")
@@ -512,6 +509,9 @@ def webhook():
 
         nombre_usuario = f"{nombre}," if nombre else ""
         
+        # 👇 Activar bandera si no tiene nombre registrado
+        if not nombre:
+            esperando_nombre[sender_number] = True
 
         # Actualizar cliente si detectó algo
         if esperando_nombre.get(sender_number) and nombre_detectado and not nombre:
@@ -578,18 +578,22 @@ def webhook():
 
         # Mensaje especial si es primera vez
         if primera_vez:
-            historial.append({
-                "role": "assistant",
-                "content": (
-                    f"¡Hola {nombre}! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
+            if nombre:
+                historial.insert(0, {
+                    "role": "assistant",
+                    "content": f"¡Hola {nombre}! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
                     "Estoy aquí para ayudarte con nuestros productos, separados y más. "
                     "¿Quieres que te muestre algo de nuestros conjuntos más 🔥 o te ayudo con alguna duda? 💖"
-                ) if nombre else (
-                    "¡Hola! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
+                })
+            else:
+                esperando_nombre[sender_number] = True
+                historial.insert(0, {
+                    "role": "assistant",
+                    "content": "¡Hola! 😊 Soy Aurora, la asistente virtual de Dulce Guadalupe. "
                     "Estoy aquí para ayudarte con nuestros productos, separados y más. "
                     "¿Quieres que te muestre algo de nuestros conjuntos más 🔥 o te ayudo con alguna duda? 💖"
-                )
-            })
+                })
+
 
         # Buscar prendas por tipo (conjunto, blusa, body, etc.)
         tipos_consultables = ["conjunto", "conjuntos", "blusa", "blusas", "body", "bodys", "pantalón", "pantalon", "short", "shorts", "falda", "faldas", "vestido", "vestidos" "ROPA INTERIOR" "interior" "ropa interior" "sudadera" "sudaderas" "pijama" "pijamas" "piyama" "piyamas" "pantaloneta" "pantalonetas" "jeans" "jean" "malla" "mallas" "licra" "licras" "leggins" "leggin" "legin" "legins" "falda short" "enterizo" "enterizos" "enterizo short" "chaqueta" "chaquetas" "chaleco" "chalecos" "camisa" "camisas" "camisetas" "camisera" "camiseras" "buzo" "buso" "buzos" "busos" "blusa jeans" "blusa " "blusa" "bikini" "bikinis"]
@@ -631,18 +635,13 @@ def webhook():
 
         ai_response = completion.choices[0].message["content"]
 
-        # Si no tenemos nombre guardado ni fue detectado
-        # Si no se tiene nombre, y tampoco lo detectó esta vez
-        # Si aún no tenemos nombre del cliente registrado
-        if not nombre:
+       # Si aún no tenemos el nombre del cliente registrado ni fue detectado ahora
+        if not nombre and not nombre_detectado:
             esperando_nombre[sender_number] = True
 
-            # Si no hay ningún nombre detectado en este mensaje
-            if not nombre_detectado:
-                if "tu nombre" not in lower_msg and "me llamo" not in lower_msg and "soy" not in lower_msg:
-                    if not ai_response.strip():
-                        ai_response = "¡Hola! 😊 ¿Cómo estás?"
-                    ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
+            if "tu nombre" not in lower_msg and not re.search(r"\b(me llamo|mi nombre es|soy)\b", lower_msg):
+                ai_response += "\n\n💡 ¿Podrías decirme tu nombre para darte una atención más personalizada? 🫶"
+
 
 
 
