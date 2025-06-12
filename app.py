@@ -720,20 +720,20 @@ def webhook():
                     conn.close()
 
                     if resultado:
-                    precio = resultado[0]
-                    estado_pedidos[sender_number] = {
-                        "fase": "esperando_datos",
-                        "datos_cliente": {},
-                        "prendas": [{"ref": ref_guardada, "cantidad": 1, "precio": precio}],
-                        "observaciones": "",
-                        "medio_conocimiento": "",
-                    }
-                    del ultima_referencia[sender_number]  # ✅ limpiamos la referencia usada
-                    return str(MessagingResponse().message(
-                        "📝 ¡Genial! Vamos a registrar tu pedido con esta prenda.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
-                        "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
-                        "Puedes enviarlos todos juntos o por partes. 🫶"
-                    ))
+                        precio = resultado[0]
+                        estado_pedidos[sender_number] = {
+                            "fase": "esperando_datos",
+                            "datos_cliente": {},
+                            "prendas": [{"ref": ref_guardada, "cantidad": 1, "precio": precio}],
+                            "observaciones": "",
+                            "medio_conocimiento": "",
+                        }
+                        del ultima_referencia[sender_number]  # ✅ limpiamos la referencia usada
+                        return str(MessagingResponse().message(
+                            "📝 ¡Genial! Vamos a registrar tu pedido con esta prenda.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
+                            "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
+                            "Puedes enviarlos todos juntos o por partes. 🫶"
+                        ))
 
                 else:
                     return str(MessagingResponse().message("⚠️ Para ayudarte a separar una prenda necesito que primero me indiques la referencia. Envíame el enlace del catálogo o dime el código de la prenda."))
