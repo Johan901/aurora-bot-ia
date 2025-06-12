@@ -43,7 +43,6 @@ def detectar_nombre(texto):
     if texto.isalpha() and len(texto) <= 20:
         return texto.capitalize()
 
-
     # Intento por estructura: "Hola, Juan"
     match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
     if match and match.group(2).isalpha():
@@ -348,6 +347,73 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 ¿Te gustaría que te ayude a hacer tu primer pedido? 🛍️ Estoy aquí para acompañarte. 💫"""
 
 
+# Leemos mediante OCR REF desde imagen del cliente
+def extraer_referencia_desde_imagen(ruta_imagen, nombre_usuario=""):
+    try:
+        img = cv2.imread(ruta_imagen)
+        if img is None:
+            raise ValueError("No se pudo leer la imagen")
+
+        h, w = img.shape[:2]
+        margen = 180
+        offset = 80  # subesquinas
+
+        regiones = {
+            "sup_izq": img[0:margen, 0:margen],
+            "sup_der": img[0:margen, w-margen:w],
+            "inf_izq": img[h-margen:h, 0:margen],
+            "inf_der": img[h-margen:h, w-margen:w],
+            "sub_sup_izq": img[offset:offset+margen, offset:offset+margen],
+            "sub_sup_der": img[offset:offset+margen, w-offset-margen:w-offset],
+            "sub_inf_izq": img[h-offset-margen:h-offset, offset:offset+margen],
+            "sub_inf_der": img[h-offset-margen:h-offset, w-offset-margen:w-offset],
+        }
+
+        posibles_refs = []
+        for nombre, region in regiones.items():
+            gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+            procesada = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                cv2.THRESH_BINARY_INV, 11, 8
+            )
+            texto = pytesseract.image_to_string(procesada, lang="eng+spa")
+            matches = re.findall(r'\b[A-Z]{2,4}\d{2,4}\b', texto.upper())
+            posibles_refs.extend(matches)
+
+        posibles_refs = list(dict.fromkeys(posibles_refs))  # quitar duplicados
+
+        for ref in posibles_refs:
+            respuesta = buscar_por_referencia(ref, nombre_usuario)
+            if "agotada" not in respuesta.lower():
+                respuesta = re.sub(
+                r"tenemos disponible la\(s\) referencia\(s\) similar\(es\) a \*\*?([A-Z]{2,4}\d{2,4})\*\*?",
+                r"La referencia **\1** está disponible en los siguientes colores:",
+                respuesta,
+                flags=re.IGNORECASE
+            )
+            return ref, respuesta
+
+
+        if posibles_refs:
+            ref_agotada = posibles_refs[0]
+            mensaje = (
+                f"{nombre_usuario} encontré la referencia *{ref_agotada}*, "
+                "pero está *agotada* 😞.\n\n"
+                "¿Quieres que te recomiende algo igual de hermoso? 💖✨"
+            )
+            return ref_agotada, mensaje
+
+        return None, (
+            f"No encontré referencias claras en la imagen {nombre_usuario} 😕.\n"
+            "¿Podrías tomar otra foto enfocando bien la referencia blanca? 💖📸"
+        )
+
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"[ERROR OCR Mejorado] {error_trace}")
+        return None, f"⚠️ Ocurrió un error al procesar la imagen 😥:\n```{str(e)}```"
+
+
 # Descargar imagen a disco temporal
 def descargar_imagen_twilio(media_url):
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
@@ -358,284 +424,73 @@ def descargar_imagen_twilio(media_url):
         f.write(response.content)
     return ruta
 
-# Ver ref por links
-def extraer_ref_desde_link_catalogo(texto):
-    patron_url = r"https:\/\/dulceguadalupe-catalogo\.ecometri\.shop\/\d+\/([a-zA-Z0-9\-]+)"
-    match = re.search(patron_url, texto)
-    if match:
-        ref_completa = match.group(1)  # jg567-cb5a7b
-        ref = ref_completa.split('-')[0]  # jg567
-        return ref.upper()
-    return None
-
-estado_pedidos = {}
-
-# FLUJO DE SEPARADOS
-# Nª1 DATOS CLIENTE
-def insertar_o_actualizar_cliente(c):
-    conn = psycopg2.connect(
-        host=os.getenv("PG_HOST"),
-        dbname=os.getenv("PG_DB"),
-        user=os.getenv("PG_USER"),
-        password=os.getenv("PG_PASSWORD"),
-        port=os.getenv("PG_PORT", "5432")
-    )
-    cur = conn.cursor()
-
-    # Comprobar si existe
-    cur.execute("SELECT cedula FROM clientes WHERE cedula = %s", (c["cedula"],))
-    existe = cur.fetchone()
-
-    if existe:
-        cur.execute("""
-            UPDATE clientes
-            SET nombre = %s, telefono = %s, email = %s, departamento = %s, ciudad = %s, direccion = %s
-            WHERE cedula = %s
-        """, (c["nombre"], c["telefono"], c["correo"], c["departamento"], c["ciudad"], c["direccion"], c["cedula"]))
-    else:
-        cur.execute("""
-            INSERT INTO clientes (cedula, nombre, telefono, email, departamento, ciudad, direccion)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (c["cedula"], c["nombre"], c["telefono"], c["correo"], c["departamento"], c["ciudad"], c["direccion"]))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-#Nª2 INSERTAR PEDIDOS
-def insertar_pedido_y_detalle(cedula, prendas, envio, observaciones, medio_conocimiento):
-    conn = psycopg2.connect(
-        host=os.getenv("PG_HOST"),
-        dbname=os.getenv("PG_DB"),
-        user=os.getenv("PG_USER"),
-        password=os.getenv("PG_PASSWORD"),
-        port=os.getenv("PG_PORT", "5432")
-    )
-    cur = conn.cursor()
-
-    from datetime import datetime, timedelta
-    fecha_pedido = datetime.now()
-    fecha_limite = fecha_pedido + timedelta(days=8)
-
-    total_pedido = sum(p["precio"] for p in prendas)
-
-    cur.execute("""
-        INSERT INTO pedidos (
-            cliente_cedula, fecha_pedido, total_pedido, asesor, envio,
-            fecha_limite, estado, medio_conocimiento, pedido_separado, observaciones
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, 'activo', %s, TRUE, %s)
-        RETURNING id_pedido
-    """, (cedula, fecha_pedido, total_pedido, "3104238002", envio, fecha_limite, medio_conocimiento, observaciones))
-
-    id_pedido = cur.fetchone()[0]
-
-    for prenda in prendas:
-        cur.execute("""
-            INSERT INTO detalle_pedido (id_pedido, referencia, cantidad, precio_unitario)
-            VALUES (%s, %s, %s, %s)
-        """, (id_pedido, prenda["ref"], prenda["cantidad"], prenda["precio"]))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
     user_msg = (request.form.get("Body") or "").strip()
-    lower_msg = user_msg.lower()
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
 
     respuestas = []
     ai_response = ""
-    
 
-    # 🛒 ACTIVAR FLUJO DE PEDIDO
-    if any(palabra in lower_msg for palabra in ["separar", "separado", "quiero hacer un pedido", "quiero apartar", "quiero comprar", "quiero separar", "puedo separar", "deseo hacer pedido", "quiero pedir"]):
-        estado_pedidos[sender_number] = {
-            "fase": "esperando_datos",
-            "datos_cliente": {},
-            "prendas": [],
-            "observaciones": "",
-            "medio_conocimiento": "",
-            "tipo_cliente": "",
-        }
-        return str(MessagingResponse().message(
-            "📝 ¡Perfecto! Vamos a registrar tu pedido.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
-            "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
-            "Puedes enviarlos todos juntos o por partes. 🫶"
-        ))
-
-    # 🔄 CONTINUACIÓN DEL FLUJO
-    if sender_number in estado_pedidos:
-        estado = estado_pedidos[sender_number]
-        fase = estado["fase"]
-        datos_cliente = estado["datos_cliente"]
-        prendas = estado["prendas"]
-
-        if fase == "esperando_datos":
-            partes = user_msg.strip().split('\n')
-            for parte in partes:
-                texto = parte.lower().strip()
-
-                if "cedula" in texto or (texto.isdigit() and 8 <= len(texto) <= 11):
-                    datos_cliente["cedula"] = ''.join(filter(str.isdigit, parte))
-                elif "nombre" in texto:
-                    datos_cliente["nombre"] = parte.split(":")[-1].strip()
-                elif "telefono" in texto or ("tel" in texto and any(c.isdigit() for c in texto)):
-                    datos_cliente["telefono"] = ''.join(filter(str.isdigit, parte))
-                elif "correo" in texto or "email" in texto or "@" in texto:
-                    datos_cliente["correo"] = detectar_correo(parte)
-                elif "departamento" in texto:
-                    datos_cliente["departamento"] = parte.split(":")[-1].strip()
-                elif "ciudad" in texto:
-                    datos_cliente["ciudad"] = parte.split(":")[-1].strip()
-                elif "direccion" in texto:
-                    datos_cliente["direccion"] = parte.split(":")[-1].strip()
-
-            faltantes = [k for k in ["cedula", "nombre", "telefono", "correo", "departamento", "ciudad", "direccion"] if k not in datos_cliente]
-            if faltantes:
-                return str(MessagingResponse().message(f"⚠️ Aún faltan los siguientes datos: {', '.join(faltantes)}. Por favor escríbelos para continuar."))
-            else:
-                try:
-                    insertar_o_actualizar_cliente(datos_cliente)
-                    estado["fase"] = "esperando_tipo_cliente"
-                    return str(MessagingResponse().message(
-                        "🤔 Antes de continuar, ¿compras al *detal* o como *mayorista*?\n\n"
-                        "🔸 *IMPORTANTE*: Esta información será verificada antes de confirmar el pedido."
-                    ))
-                except Exception as e:
-                    return str(MessagingResponse().message("❌ Hubo un problema registrando tus datos. Intenta nuevamente."))
-
-
-        elif fase == "esperando_tipo_cliente":
-            tipo = lower_msg.strip()
-            if "mayor" in tipo:
-                estado["tipo_cliente"] = "mayorista"
-            elif "detal" in tipo:
-                estado["tipo_cliente"] = "detal"
-            else:
-                return str(MessagingResponse().message(
-                    "❌ No entendí tu respuesta. Por favor indica si eres *mayorista* o compras al *detal*."
-                ))
-            estado["fase"] = "esperando_prendas"
-            return str(MessagingResponse().message(
-                "✅ ¡Perfecto! Ahora dime las referencias y cantidades a separar. Por ejemplo:\n*JG456 x2*\n*RR789 x1*"
-            ))
-
-        elif fase == "esperando_prendas":
-            lineas = user_msg.strip().split('\n')
-            nuevas_prendas = []
-            for linea in lineas:
-                match = re.match(r"([A-Z0-9\-]{3,})\s*[xX]\s*(\d+)", linea.strip(), re.IGNORECASE)
-                if match:
-                    ref, cantidad = match.groups()
-                    cantidad = int(cantidad)
-
-                    # Obtener precios desde BD según ref
-                    conn = psycopg2.connect(
-                        host=os.getenv("PG_HOST"),
-                        dbname=os.getenv("PG_DB"),
-                        user=os.getenv("PG_USER"),
-                        password=os.getenv("PG_PASSWORD"),
-                        port=os.getenv("PG_PORT", "5432")
-                    )
-                    cur = conn.cursor()
-                    cur.execute("""
-                        SELECT precio_al_detal, precio_por_mayor FROM inventario
-                        WHERE ref = %s
-                        LIMIT 1
-                    """, (ref.upper(),))
-                    resultado = cur.fetchone()
-                    cur.close()
-                    conn.close()
-
-                    if resultado:
-                        precio = resultado[1] if estado["tipo_cliente"] == "mayorista" else resultado[0]
-                        nuevas_prendas.append({"ref": ref.upper(), "cantidad": cantidad, "precio": precio})
-
-            if not nuevas_prendas:
-                return str(MessagingResponse().message("❌ No detecté prendas válidas. Usa el formato *REF x CANTIDAD*"))
-
-            estado["prendas"].extend(nuevas_prendas)
-            estado["fase"] = "esperando_envio"
-            return str(MessagingResponse().message(
-                "📝 ¿Tienes alguna observación especial para este pedido?\n\nY dime si será *recojo en local* o *envío a domicilio*."
-            ))
-
-        elif fase == "esperando_envio":
-            estado["observaciones"] = user_msg
-            estado["fase"] = "esperando_medio_conocimiento"
-            return str(MessagingResponse().message(
-                "📣 ¿Cómo nos conociste? Elige una opción:\n\n"
-                "- Pauta Publicitaria\n- Redes Sociales\n- Cliente Frecuente\n- Punto Físico\n- Boca a Boca\n- Email Marketing\n- Eventos o Ferias\n- Promociones en Línea\n- Otros"
-            ))
-
-        elif fase == "esperando_medio_conocimiento":
-            opciones_validas = [
-                "Pauta Publicitaria", "Redes Sociales", "Cliente Frecuente", "Punto Físico",
-                "Boca a Boca", "Email Marketing", "Eventos o Ferias", "Promociones en Línea", "Otros"
-            ]
-            medio = user_msg.strip()
-            if medio not in opciones_validas:
-                return str(MessagingResponse().message("❌ Esa opción no es válida. Responde con una de las opciones mencionadas."))
-            estado["medio_conocimiento"] = medio
-            estado["fase"] = "confirmacion_final"
-
-            resumen = "\n".join([f"- *{p['ref']}* x{p['cantidad']}" for p in prendas])
-            return str(MessagingResponse().message(
-                f"✅ ¡Perfecto! Aquí tienes el resumen del pedido:\n\n"
-                f"👤 Cliente: *{datos_cliente['nombre']}*\n🧾 Cédula: *{datos_cliente['cedula']}*\n📦 Prendas:\n{resumen}\n\n"
-                f"📍 Observaciones: {estado['observaciones']}\n📣 Medio: {medio}\n\n"
-                f"¿Deseas confirmar el pedido? Responde *sí* para proceder o *no* para cancelar."
-            ))
-
-        elif fase == "confirmacion_final":
-            if "sí" in lower_msg:
-                insertar_pedido_y_detalle(
-                    datos_cliente["cedula"],
-                    prendas,
-                    envio=estado["observaciones"],
-                    observaciones=estado["observaciones"],
-                    medio_conocimiento=estado["medio_conocimiento"]
-                )
-                del estado_pedidos[sender_number]
-                return str(MessagingResponse().message("🎉 ¡Tu pedido ha sido registrado exitosamente! Muchas gracias por comprar en Dulce Guadalupe. Te avisaremos cualquier novedad. 💖"))
-            else:
-                del estado_pedidos[sender_number]
-                return str(MessagingResponse().message("🛑 Pedido cancelado. Si deseas volver a intentarlo, solo escríbeme. Estoy aquí para ayudarte 💬"))
-
-        # Fallback si fase no se reconoce
-        return str(MessagingResponse().message("⚠️ Estoy procesando tu pedido. Si algo sale mal, escribe *cancelar pedido* para reiniciar."))
-
-
-
-    # 🔸 Nuevo manejo para contenido multimedia
+    # 🔹 Procesar imágenes si hay
     if num_medias > 0:
-        datos_cliente = recuperar_cliente_info(sender_number)
-        nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
+        try:
+            datos_cliente = recuperar_cliente_info(sender_number)
+            nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
-        twilio_response = MessagingResponse()
-        twilio_response.message(
-            f"Hola {nombre_usuario} 💖 Para ayudarte con el producto correcto, por favor compárteme el *enlace del catálogo oficial*.\n\n"
-            "✅ Ingresa al catálogo:\nhttps://dulceguadalupe-catalogo.ecometri.shop\n"
-            "📦 Selecciona la prenda que deseas\n🔗 Presiona *Compartir* y envíame ese link aquí.\n\n"
-            "Así podré ver exactamente la referencia y ayudarte a separar o verificar disponibilidad 🛍️✨"
-        )
-        return str(twilio_response)
+            for i in range(num_medias):
+                media_url = request.form.get(f"MediaUrl{i}")
+                media_type = request.form.get(f"MediaContentType{i}")
+
+                if media_url and media_type and media_type.startswith("image/"):
+                    ruta_img = descargar_imagen_twilio(media_url)
+                    resultado = extraer_referencia_desde_imagen(ruta_img, nombre_usuario)
+
+                    print(f"[🧠 OCR resultado]: {resultado}")
+
+                    # Validación estricta del resultado
+                    if not resultado or not isinstance(resultado, tuple) or len(resultado) != 2:
+                        ref_ocr, respuesta = None, (
+                            f"No pude procesar bien la imagen {nombre_usuario} 😥.\n"
+                            "¿Podrías enviarla de nuevo con mejor foco o luz? 📷"
+                        )
+                    else:
+                        ref_ocr, respuesta = resultado
+
+                        if not ref_ocr:
+                            respuesta = (
+                                f"No detecté ninguna referencia clara en la imagen {nombre_usuario} 😕.\n"
+                                "Intenta con otra foto enfocando bien la etiqueta. 💡"
+                            )
+
+                    # Guarda el mensaje como imagen recibida y la respuesta del bot
+                    insertar_mensaje(sender_number, "user", f"[Imagen recibida {i+1}]")
+                    insertar_mensaje(sender_number, "assistant", respuesta)
+
+                    # RESPONDE de inmediato y no evalúa el texto
+                    twilio_response = MessagingResponse()
+                    twilio_response.message(respuesta)
+                    return str(twilio_response)
+
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            print(f"[❌ ERROR OCR]: {error_trace}")
+            twilio_response = MessagingResponse()
+            twilio_response.message(f"⚠️ Ocurrió un error procesando la imagen:\n```{str(e)}```")
+            return str(twilio_response)
+
+
 
     try:
         historial = recuperar_historial(sender_number, limite=15)
         primera_vez = len(historial) == 0
 
+        lower_msg = user_msg.lower()
         # 🔍 Verificar si están preguntando por una referencia
         mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
         match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
-        ref_link_detectada = extraer_ref_desde_link_catalogo(user_msg)
-
 
         #Prendas
         posibles_prendas = ["conjunto", "vestido", "body", "blusa", "falda"]
@@ -653,8 +508,7 @@ def webhook():
 
         nombre_usuario = f"{nombre}," if nombre else ""
         
-        # WEBHOOK PEDIDOS
-        
+
         # Actualizar cliente si detectó algo
         if nombre_detectado:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
@@ -663,80 +517,15 @@ def webhook():
             actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado)
 
 
-
-        if match_ref or ref_link_detectada:
-            ref_encontrada = match_ref.group().upper() if match_ref else ref_link_detectada
-            ultima_referencia[sender_number] = ref_encontrada  # 👉 Guardamos la última ref consultada
+        if match_ref:
+            ref_encontrada = match_ref.group().upper()
             ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
-            
-            # Insertar mensajes al historial
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
 
-            # Consultar precio real desde BD
-            conn = psycopg2.connect(
-                host=os.getenv("PG_HOST"),
-                dbname=os.getenv("PG_DB"),
-                user=os.getenv("PG_USER"),
-                password=os.getenv("PG_PASSWORD"),
-                port=os.getenv("PG_PORT", "5432")
-            )
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT precio_al_detal, precio_por_mayor FROM inventario
-                WHERE ref = %s
-                LIMIT 1
-            """, (ref_encontrada.upper(),))
-            resultado = cur.fetchone()
-            cur.close()
-            conn.close()
-
-            if resultado:
-                precio = resultado[0]  # Por ahora, al detal. Se ajustará luego según si es mayorista.
-            else:
-                precio = 0  # Fallback si no encontró nada
-            
-            # 👉 AÑADIR DETECCIÓN DE INTENCIÓN DE SEPARAR
-            # 👉 INTENCIÓN DE SEPARAR
-            if any(palabra in lower_msg for palabra in ["separarla", "separar esta", "quiero separarla", "quiero pedirla", "quiero comprarla", "quiero apartarla", "quiero esta"]):
-                ref_guardada = ultima_referencia.get(sender_number)
-                if ref_guardada:
-                    # Consultar precio de la última ref guardada
-                    conn = psycopg2.connect(
-                        host=os.getenv("PG_HOST"),
-                        dbname=os.getenv("PG_DB"),
-                        user=os.getenv("PG_USER"),
-                        password=os.getenv("PG_PASSWORD"),
-                        port=os.getenv("PG_PORT", "5432")
-                    )
-                    cur = conn.cursor()
-                    cur.execute("""
-                        SELECT precio_al_detal, precio_por_mayor FROM inventario
-                        WHERE ref = %s
-                        LIMIT 1
-                    """, (ref_guardada,))
-                    resultado = cur.fetchone()
-                    cur.close()
-                    conn.close()
-
-                    if resultado:
-                        precio = resultado[0]
-                        estado_pedidos[sender_number] = {
-                            "fase": "esperando_datos",
-                            "datos_cliente": {},
-                            "prendas": [{"ref": ref_guardada, "cantidad": 1, "precio": precio}],
-                            "observaciones": "",
-                            "medio_conocimiento": "",
-                        }
-                        del ultima_referencia[sender_number]  # ✅ limpiamos la referencia usada
-                        return str(MessagingResponse().message(
-                            "📝 ¡Genial! Vamos a registrar tu pedido con esta prenda.\n\nPor favor, envíame los siguientes datos en este formato:\n\n"
-                            "*Nombre:* ...\n*Cédula:* ...\n*Teléfono:* ...\n*Correo:* ...\n*Departamento:* ...\n*Ciudad:* ...\n*Dirección:* ...\n\n"
-                            "Puedes enviarlos todos juntos o por partes. 🫶"
-                        ))
-
-                else:
-                    return str(MessagingResponse().message("⚠️ Para ayudarte a separar una prenda necesito que primero me indiques la referencia. Envíame el enlace del catálogo o dime el código de la prenda."))
 
 
         elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
@@ -764,7 +553,7 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
 
-        elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "mayorista", "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
+        elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "mayorista" "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
             ai_response = responder_mayoristas(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
@@ -841,9 +630,6 @@ def webhook():
         # Si no tenemos nombre guardado ni fue detectado
         if not nombre and not nombre_detectado and "tu nombre" not in user_msg.lower():
             ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
-            
-        esperando_nombre[sender_number] = True
-
 
 
     except Exception as e:
