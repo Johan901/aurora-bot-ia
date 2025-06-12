@@ -514,9 +514,9 @@ def webhook():
         
 
         # Actualizar cliente si detectó algo
-        if nombre_detectado and not nombre:
+        if esperando_nombre.get(sender_number) and nombre_detectado and not nombre:
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
-            esperando_nombre.pop(sender_number, None)
+            esperando_nombre.pop(sender_number, None)  # Limpiar bandera después de guardar
         elif prenda_detectada or talla_detectada or correo_detectado:
             actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado)
 
@@ -634,6 +634,8 @@ def webhook():
         # Si no tenemos nombre guardado ni fue detectado
         if not nombre and not nombre_detectado and "tu nombre" not in user_msg.lower():
             ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
+            esperando_nombre[sender_number] = True  # ACTIVAR bandera
+
 
 
     except Exception as e:
