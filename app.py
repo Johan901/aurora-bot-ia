@@ -440,6 +440,10 @@ def webhook():
             datos_cliente = recuperar_cliente_info(sender_number)
             nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
+            # 👇 Activar bandera si no tiene nombre registrado
+            if not nombre:
+                esperando_nombre[sender_number] = True
+
             for i in range(num_medias):
                 media_url = request.form.get(f"MediaUrl{i}")
                 media_type = request.form.get(f"MediaContentType{i}")
