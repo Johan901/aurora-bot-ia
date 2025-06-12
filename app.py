@@ -633,13 +633,16 @@ def webhook():
 
         # Si no tenemos nombre guardado ni fue detectado
         # Si no se tiene nombre, y tampoco lo detectó esta vez
-        if not nombre and not nombre_detectado:
+        # Si aún no tenemos nombre del cliente registrado
+        if not nombre:
             esperando_nombre[sender_number] = True
-            if "tu nombre" not in lower_msg:
-                if not ai_response:
-                    ai_response = "¡Hola! 😊 ¿Cómo estás?"
-                ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
 
+            # Si no hay ningún nombre detectado en este mensaje
+            if not nombre_detectado:
+                if "tu nombre" not in lower_msg and "me llamo" not in lower_msg and "soy" not in lower_msg:
+                    if not ai_response.strip():
+                        ai_response = "¡Hola! 😊 ¿Cómo estás?"
+                    ai_response += "\n\n💡 ¿Me podrías decir tu nombre para darte una mejor atención? 🫶"
 
 
 
