@@ -725,6 +725,9 @@ def webhook():
         
         Además, invítalo a unirse a nuestro grupo privado de WhatsApp para conocer promociones y colecciones exclusivas:
         👉 https://chat.whatsapp.com/E0LcsssYLpX4hRuh7cc1zX
+
+        Si te preguntan por el instagram dales el link e invitalos a ver todas las publicaciones y todo lo que publicamos:
+        👉 https://www.instagram.com/dulceguadalupe_empresa?igsh=MTJqbzJpZWo3bHlyMg==
         """
 
         completion = openai.ChatCompletion.create(
