@@ -427,6 +427,59 @@ def descargar_imagen_twilio(media_url):
         f.write(response.content)
     return ruta
 
+# BLOQUEOS
+def esta_bloqueado(phone_number):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT bloqueado FROM bloqueos_aurora WHERE phone_number = %s
+    """, (phone_number,))
+    resultado = cur.fetchone()
+    cur.close()
+    conn.close()
+    return resultado and resultado[0] is True
+
+def bloquear_aurora_para(phone_number):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO bloqueos_aurora (phone_number, bloqueado)
+        VALUES (%s, TRUE)
+        ON CONFLICT (phone_number) DO UPDATE SET bloqueado = TRUE
+    """, (phone_number,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+#DESBLOQUEO
+def desbloquear_aurora_para(phone_number):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("DELETE FROM bloqueos_aurora WHERE phone_number = %s", (phone_number,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -436,6 +489,21 @@ def webhook():
 
     respuestas = []
     ai_response = ""
+    
+    #Bloqueo
+    if esta_bloqueado(sender_number):
+        return str(MessagingResponse())  # No responde nada si está bloqueado
+    
+    # 🔥 Desbloqueo automático si estaba bloqueado pero ya no usa [ASESOR]
+    if esta_bloqueado(sender_number) and not user_msg.startswith("[ASESOR]"):
+        desbloquear_aurora_para(sender_number)
+    
+    if user_msg.startswith("[ASESOR]"): 
+        # Bloqueo automático
+        insertar_mensaje(sender_number, "user", user_msg)
+        bloquear_aurora_para(sender_number)
+        return str(MessagingResponse())  # no deja que Aurora responda a esto
+
 
     # Si el cliente envía una imagen o archivo adjunto
     if num_medias > 0:
@@ -472,9 +540,54 @@ def webhook():
         primera_vez = len(historial) == 0
 
         lower_msg = user_msg.lower()
-        # 🔍 Verificar si están preguntando por una referencia
-        mensaje_limpio = re.sub(r'[^\w\s]', '', lower_msg)
-        match_ref = re.search(r'\b[a-z]{2}\d{2,4}\b', mensaje_limpio)
+        # Detectar intención de separación o compra inmediata
+        intencion_separar = any(p in lower_msg for p in [
+            "quiero comprar", "quiero separar", "me interesa", "me la puedes apartar", "dame esta", "quiero esta ref", "quiero pedir", "quiero pedirte", "pedido", "pedir",
+            "la quiero", "separar", "quiero esta", "separame", "quiero esta", "para encargarte", "encargar", "se puede separar", "puedo separar", "separar ref", "me la apartas",
+            "quiero esta ref", "me interesa esta referencia", "me gustaría comprar", "deseo separar"
+        ])
+
+        if intencion_separar:
+            datos_cliente = recuperar_cliente_info(sender_number)
+            nombre_usuario = datos_cliente[0] if datos_cliente and datos_cliente[0] else "💖"
+
+            mensaje = (
+                f"Gracias por tu interés {nombre_usuario} 🥰.\n\n"
+                "🛍️ Hemos recibido tu solicitud para separar o comprar esta prenda. "
+                "En unos instantes una asesora se pondrá en contacto contigo directamente por aquí 💬.\n\n"
+                "Mientras tanto, puedes seguir viendo nuestro catálogo completo aquí:\n"
+                "👉 https://dulceguadalupe-catalogo.ecometri.shop"
+            )
+
+            # Guardar en historial
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", mensaje)
+
+            # Insertar alerta en tabla alertas_pendientes
+            try:
+                conn = psycopg2.connect(
+                    host=os.getenv("PG_HOST"),
+                    dbname=os.getenv("PG_DB"),
+                    user=os.getenv("PG_USER"),
+                    password=os.getenv("PG_PASSWORD"),
+                    port=os.getenv("PG_PORT", "5432")
+                )
+                cur = conn.cursor()
+                cur.execute("""
+                    INSERT INTO alertas_pendientes (phone_number, mensaje_cliente, fecha_alerta)
+                    VALUES (%s, %s, NOW())
+                """, (sender_number, user_msg))
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception as e:
+                print("[ERROR insertando alerta]", e)
+
+            twilio_response = MessagingResponse()
+            twilio_response.message(mensaje)
+            return str(twilio_response)
+
+
 
         #Prendas
         posibles_prendas = ["conjunto", "vestido", "body", "blusa", "falda"]
@@ -503,6 +616,7 @@ def webhook():
         elif prenda_detectada or talla_detectada or correo_detectado:
             actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado)
 
+        match_ref = re.search(r'\b[A-Z]{2,4}\d{2,4}\b', user_msg.upper())
 
         if match_ref:
             ref_encontrada = match_ref.group().upper()
