@@ -573,9 +573,9 @@ def webhook():
                 )
                 cur = conn.cursor()
                 cur.execute("""
-                    INSERT INTO alertas_pendientes (phone_number, mensaje_cliente, fecha_alerta)
-                    VALUES (%s, %s, NOW())
-                """, (sender_number, user_msg))
+                    INSERT INTO alertas_pendientes (phone_number, nombre, mensaje, fecha, respondido)
+                    VALUES (%s, %s, %s, NOW(), FALSE)
+                """, (sender_number, nombre_usuario, user_msg))
                 conn.commit()
                 cur.close()
                 conn.close()
