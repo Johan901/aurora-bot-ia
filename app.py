@@ -449,8 +449,14 @@ def webhook():
             "👉 https://dulceguadalupe-catalogo.ecometri.shop\n\n"
             "Cuando decidas sobre tu pedido, *escríbeme para remitirte con una asesora* 💖🛍️"
         )
-        insertar_mensaje(sender_number, "user", f"[Archivo adjunto recibido]")
+        media_url = request.form.get("MediaUrl0")  # Solo tomamos la primera imagen
+        if media_url:
+            insertar_mensaje(sender_number, "user", f"[Imagen recibida]({media_url})")
+        else:
+            insertar_mensaje(sender_number, "user", "[Archivo adjunto recibido]")
+
         insertar_mensaje(sender_number, "assistant", "Mensaje informativo por imagen/archivo no procesado.")
+
         return str(twilio_response)
 
 
