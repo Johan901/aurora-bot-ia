@@ -442,22 +442,28 @@ def webhook():
         datos_cliente = recuperar_cliente_info(sender_number)
         nombre_usuario = f"{datos_cliente[0]}," if datos_cliente and datos_cliente[0] else ""
 
+        media_url = request.form.get("MediaUrl0")
+        mensaje_completo = user_msg if user_msg else "Imagen sin texto"
+
+        # ✅ Guarda ambos: texto + imagen (si existen)
+        if media_url:
+            mensaje_con_media = f"{mensaje_completo}\n\n[Imagen recibida]({media_url})"
+            insertar_mensaje(sender_number, "user", mensaje_con_media)
+        else:
+            insertar_mensaje(sender_number, "user", mensaje_completo)
+
         twilio_response = MessagingResponse()
         twilio_response.message(
-            f"📸 {nombre_usuario} recibí tu imagen o archivo.\n\n"
+            f"📸 {nombre_usuario} recibí tu imagen.\n\n"
             "💡 Si deseas *separar una prenda* o *hacer un pedido*, por favor revisa nuestro catálogo:\n"
             "👉 https://dulceguadalupe-catalogo.ecometri.shop\n\n"
             "Cuando decidas sobre tu pedido, *escríbeme para remitirte con una asesora* 💖🛍️"
         )
-        media_url = request.form.get("MediaUrl0")  # Solo tomamos la primera imagen
-        if media_url:
-            insertar_mensaje(sender_number, "user", f"[Imagen recibida]({media_url})")
-        else:
-            insertar_mensaje(sender_number, "user", "[Archivo adjunto recibido]")
 
         insertar_mensaje(sender_number, "assistant", "Mensaje informativo por imagen/archivo no procesado.")
 
         return str(twilio_response)
+
 
 
 
