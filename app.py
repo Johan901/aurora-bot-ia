@@ -563,7 +563,6 @@ def webhook():
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", mensaje)
 
-            # Insertar alerta en tabla alertas_pendientes
             try:
                 conn = psycopg2.connect(
                     host=os.getenv("PG_HOST"),
@@ -583,10 +582,12 @@ def webhook():
             except Exception as e:
                 print("[ERROR insertando alerta]", e)
 
+            # 👇 ESTA ES LA LÍNEA QUE FALTABA
+            bloquear_aurora_para(sender_number)
+
             twilio_response = MessagingResponse()
             twilio_response.message(mensaje)
             return str(twilio_response)
-
 
 
         #Prendas
