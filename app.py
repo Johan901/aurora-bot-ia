@@ -40,10 +40,11 @@ def detectar_nombre(texto, sender_number=None):
                 return nombre.capitalize()
 
     # Solo acepta una palabra como nombre si estamos esperando el nombre
-    if sender_number and esperando_nombre.get(sender_number) and texto.isalpha() and len(texto) <= 20:
+    if sender_number and esperando_nombre.get(sender_number):
         saludos_comunes = {"hola", "buenas", "buenosdias", "buenasdias", "buenastardes", "buenasnoches"}
-        if texto.lower() not in saludos_comunes:
+        if texto.isalpha() and len(texto) <= 20 and texto.lower() not in saludos_comunes:
             return texto.capitalize()
+
 
     # Detectar estructura tipo: "Hola, Juan" solo si no estamos esperando el nombre
     if sender_number and not esperando_nombre.get(sender_number):
