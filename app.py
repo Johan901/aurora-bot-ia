@@ -48,9 +48,12 @@ def detectar_nombre(texto, sender_number=None):
 
     # Detectar estructura tipo: "Hola, Juan" solo si no estamos esperando el nombre
     if sender_number and not esperando_nombre.get(sender_number):
-        match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
-        if match and match.group(2).isalpha():
-            return match.group(2).capitalize()
+        match = re.search(r"\b(?:hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
+        nombre_posible = match.group(1) if match else None
+        saludos_comunes = {"hola", "buenas", "buena", "holaaa", "saludos", "tardes", "dias", "noches"}
+        if nombre_posible and nombre_posible.lower() not in saludos_comunes:
+            return nombre_posible.capitalize()
+
 
 
     return None
