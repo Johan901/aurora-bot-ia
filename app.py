@@ -45,10 +45,12 @@ def detectar_nombre(texto, sender_number=None):
         if texto.lower() not in saludos_comunes:
             return texto.capitalize()
 
-    # Estructura tipo: "Hola, Juan"
-    match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
-    if match and match.group(2).isalpha():
-        return match.group(2).capitalize()
+    # Detectar estructura tipo: "Hola, Juan" solo si no estamos esperando el nombre
+    if sender_number and not esperando_nombre.get(sender_number):
+        match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
+        if match and match.group(2).isalpha():
+            return match.group(2).capitalize()
+
 
     return None
 
@@ -595,7 +597,7 @@ def webhook():
         posibles_tallas = ["xs", "s", "m", "l", "xl"]
 
         # Detección inteligente
-        nombre_detectado = detectar_nombre(user_msg)
+        nombre_detectado = detectar_nombre(user_msg, sender_number)
         correo_detectado = detectar_correo(user_msg)
         prenda_detectada = next((p for p in posibles_prendas if p in lower_msg), None)
         talla_detectada = next((t.upper() for t in posibles_tallas if f"talla {t}" in lower_msg or f"talla: {t}" in lower_msg), None)
