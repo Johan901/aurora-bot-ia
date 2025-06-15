@@ -126,7 +126,7 @@ def recuperar_cliente_info(phone_number):
     return resultado  # (nombre, prenda, talla) o None
 
 # 🔹 Insertar o actualizar cliente en la tabla clientes_ia
-def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, correo=None):
+def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, correo=None, ciudad=None):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -144,6 +144,9 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
         # Solo actualiza si hay datos nuevos
         campos = []
         valores = []
+        if ciudad:
+            campos.append("ciudad = %s")
+            valores.append(ciudad)
         if nombre:
             campos.append("nombre = %s")
             valores.append(nombre)
@@ -163,9 +166,9 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
             cur.execute(query, valores)
     else:
         cur.execute("""
-            INSERT INTO clientes_ia (phone_number, nombre, ultima_prenda, ultima_talla, correo)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (phone_number, nombre, prenda, talla, correo))
+            INSERT INTO clientes_ia (phone_number, nombre, ultima_prenda, ultima_talla, correo, ciudad)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (phone_number, nombre, prenda, talla, correo, ciudad))
 
     conn.commit()
     cur.close()
@@ -485,6 +488,43 @@ def desbloquear_aurora_para(phone_number):
     cur.close()
     conn.close()
 
+#Detectar ciudad
+def detectar_ciudad(texto):
+    texto = texto.lower()
+
+    patrones_ciudad = [
+        r"soy de ([a-záéíóúñ\s]+)",
+        r"vivo en ([a-záéíóúñ\s]+)",
+        r"desde ([a-záéíóúñ\s]+)",
+        r"escribo desde ([a-záéíóúñ\s]+)",
+        r"estoy en ([a-záéíóúñ\s]+)",
+        r"de ([a-záéíóúñ\s]+)$"
+    ]
+
+    # Lista extendida de ciudades en Colombia, centrada en Valle del Cauca y Cali
+    ciudades_colombia = {
+        "cali", "jamundí", "yumbo", "palmira", "buga", "cerrito", "dapa", "cerrito", "santa helena", "ginebra", "candelaria", "tuluá", "buga", "cartago", "zarzal", "sevilla", "roldanillo", "caicedonia", "la unión", "obando", "el cerrito", "el águila",
+        "bogotá", "medellín", "barranquilla", "cartagena", "pereira", "bucaramanga", "cúcuta", "soacha", "ibagué", "neiva", "pasto", "manizales", "villavicencio", "montería", "santa marta",
+        "sincelejo", "valledupar", "riohacha", "quibdó", "tunja", "popayán", "florencia", "armenia", "leticia", "mitú", "mocoa", "san andrés", "bello", "envigado", "dosquebradas", "chía", "girardot",
+        "fusagasugá", "facatativá", "mosquera", "malambo", "soledad", "ciénaga", "tumaco", "guadalajara de buga", "funza", "zarzal"
+    }
+
+    for patron in patrones_ciudad:
+        match = re.search(patron, texto)
+        if match:
+            ciudad_detectada = match.group(1).strip()
+            ciudad_normalizada = ciudad_detectada.split(",")[0].strip()
+            for ciudad in ciudades_colombia:
+                if ciudad_normalizada.startswith(ciudad):
+                    return ciudad.title()
+
+    # Fallback si solo mencionan la ciudad sin contexto
+    for ciudad in ciudades_colombia:
+        if ciudad in texto:
+            return ciudad.title()
+
+    return None
+
 
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
@@ -603,6 +643,7 @@ def webhook():
         # Detección inteligente
         nombre_detectado = detectar_nombre(user_msg, sender_number)
         correo_detectado = detectar_correo(user_msg)
+        ciudad_detectada = detectar_ciudad(user_msg)
         prenda_detectada = next((p for p in posibles_prendas if p in lower_msg), None)
         talla_detectada = next((t.upper() for t in posibles_tallas if f"talla {t}" in lower_msg or f"talla: {t}" in lower_msg), None)
 
@@ -618,10 +659,11 @@ def webhook():
 
         # Actualizar cliente si detectó algo
         if esperando_nombre.get(sender_number) and nombre_detectado and not nombre:
-            actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado)
-            esperando_nombre.pop(sender_number, None)  # Limpiar bandera después de guardar
-        elif prenda_detectada or talla_detectada or correo_detectado:
-            actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado)
+            actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado, ciudad_detectada)
+            esperando_nombre.pop(sender_number, None)
+        elif prenda_detectada or talla_detectada or correo_detectado or ciudad_detectada:
+            actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado, ciudad_detectada)
+
 
         match_ref = re.search(r'\b[A-Z]{2,4}\d{2,4}\b', user_msg.upper())
 
@@ -751,7 +793,7 @@ def webhook():
             esperando_nombre[sender_number] = True
 
             if "tu nombre" not in lower_msg and not re.search(r"\b(me llamo|mi nombre es|soy)\b", lower_msg):
-                ai_response += "\n\n💡 ¿Podrías decirme tu nombre para darte una atención más personalizada? 🫶"
+                ai_response += "\n\n💡 ¿Podrías decirme tu *nombre* y desde qué *ciudad* nos escribes para darte una atención más personalizada? 🫶"
 
 
 
