@@ -23,7 +23,7 @@ esperando_nombre = {}
 ultima_referencia = {}
 
 #Detectamos nombre
-def detectar_nombre(texto):
+def detectar_nombre(texto, sender_number=None):
     texto = texto.strip().lower()
 
     # Detecta nombre en frases típicas
@@ -39,19 +39,19 @@ def detectar_nombre(texto):
             if nombre.isalpha():
                 return nombre.capitalize()
 
-    # Si solo escribe el nombre
-    if texto.isalpha() and len(texto) <= 20:
-        saludos_comunes = ["hola", "buenas", "buenosdias", "buenasdias", "buenastardes", "buenosdías", "buenastardes", "buenasnoches"]
-        if texto not in saludos_comunes:
+    # Solo acepta una palabra como nombre si estamos esperando el nombre
+    if sender_number and esperando_nombre.get(sender_number) and texto.isalpha() and len(texto) <= 20:
+        saludos_comunes = {"hola", "buenas", "buenosdias", "buenasdias", "buenastardes", "buenasnoches"}
+        if texto.lower() not in saludos_comunes:
             return texto.capitalize()
 
-
-    # Intento por estructura: "Hola, Juan"
+    # Estructura tipo: "Hola, Juan"
     match = re.search(r"\b(hola|buenas)[^\w]{0,3}(\w+)", texto, re.IGNORECASE)
     if match and match.group(2).isalpha():
         return match.group(2).capitalize()
 
     return None
+
 
 
 def detectar_correo(texto):
