@@ -48,7 +48,7 @@ def detectar_nombre(texto, sender_number=None):
 
     # Detectar estructura tipo: "Hola, Juan" solo si no estamos esperando el nombre
     if sender_number and not esperando_nombre.get(sender_number):
-        match = re.search(r"\b(?:hola|buenas)[\s,]+(\w+)", texto, re.IGNORECASE)
+        match = re.search(r"\b(?:hola|buenas)[\s,]*([a-záéíóúñ]+)", texto, re.IGNORECASE)
         nombre_posible = match.group(1) if match else None
         saludos_comunes = {"hola", "buenas", "buena", "holaaa", "saludos", "tardes", "dias", "noches"}
         if nombre_posible and nombre_posible.lower() not in saludos_comunes:
@@ -658,7 +658,7 @@ def webhook():
             esperando_nombre[sender_number] = True
 
         # Actualizar cliente si detectó algo
-        if nombre_detectado and not nombre:
+        if nombre_detectado and not (nombre and nombre.strip()):
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado, ciudad_detectada)
             esperando_nombre.pop(sender_number, None)
         elif prenda_detectada or talla_detectada or correo_detectado or ciudad_detectada:
