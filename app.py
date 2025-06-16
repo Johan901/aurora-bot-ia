@@ -42,8 +42,15 @@ def detectar_nombre(texto, sender_number=None):
     # Solo acepta una palabra como nombre si estamos esperando el nombre
     if sender_number and esperando_nombre.get(sender_number):
         saludos_comunes = {"hola", "buenas", "buenosdias", "buenasdias", "buenastardes", "buenasnoches"}
-        if texto.isalpha() and len(texto) <= 20 and texto.lower() not in saludos_comunes:
-            return texto.capitalize()
+        palabras_invalidas = {"como", "quiero", "gracias", "ayuda", "necesito", "porfavor", "favor", "info", "información", "informacion"}
+
+        # Extrae primera palabra si la oración comienza con un nombre
+        match = re.match(r"^(\w+)[\s,]*(de|desde|vivo|soy)?", texto)
+        if match:
+            posible_nombre = match.group(1)
+            if posible_nombre.isalpha() and posible_nombre.lower() not in saludos_comunes and posible_nombre.lower() not in palabras_invalidas:
+                return posible_nombre.capitalize()
+
 
 
     # Detectar estructura tipo: "Hola, Juan" solo si no estamos esperando el nombre
@@ -532,6 +539,19 @@ def webhook():
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
 
+    # Recuperar info previa
+    datos_cliente = recuperar_cliente_info(sender_number)
+    nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
+
+    # 👇 Activar bandera inmediatamente antes de responder
+    if nombre is None:
+        esperando_nombre[sender_number] = True
+    else:
+        esperando_nombre[sender_number] = False  # por si ya lo tenía
+
+    nombre_usuario = f"{nombre}," if nombre else ""
+
+
     respuestas = []
     ai_response = ""
     
@@ -646,16 +666,6 @@ def webhook():
         prenda_detectada = next((p for p in posibles_prendas if p in lower_msg), None)
         talla_detectada = next((t.upper() for t in posibles_tallas if f"talla {t}" in lower_msg or f"talla: {t}" in lower_msg), None)
 
-        # Recuperar info previa
-        datos_cliente = recuperar_cliente_info(sender_number)
-        nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
-
-        nombre_usuario = f"{nombre}," if nombre else ""
-        
-        # 👇 Activar bandera si no tiene nombre registrado
-        if not nombre:
-            esperando_nombre[sender_number] = True
-
         # Actualizar cliente si detectó algo
         if nombre_detectado and (nombre is None or nombre.strip() == ""):
             actualizar_cliente(sender_number, nombre_detectado, prenda_detectada, talla_detectada, correo_detectado, ciudad_detectada)
@@ -743,7 +753,7 @@ def webhook():
 
 
         # Buscar prendas por tipo (conjunto, blusa, body, etc.)
-        tipos_consultables = ["conjunto", "conjuntos", "blusa", "blusas", "body", "bodys", "pantalón", "pantalon", "short", "shorts", "falda", "faldas", "vestido", "vestidos" "ROPA INTERIOR" "interior" "ropa interior" "sudadera" "sudaderas" "pijama" "pijamas" "piyama" "piyamas" "pantaloneta" "pantalonetas" "jeans" "jean" "malla" "mallas" "licra" "licras" "leggins" "leggin" "legin" "legins" "falda short" "enterizo" "enterizos" "enterizo short" "chaqueta" "chaquetas" "chaleco" "chalecos" "camisa" "camisas" "camisetas" "camisera" "camiseras" "buzo" "buso" "buzos" "busos" "blusa jeans" "blusa " "blusa" "bikini" "bikinis"]
+        tipos_consultables = ["conjunto", "conjuntos", "blusa", "blusas", "body", "bodys", "pantalón", "pantalon", "short", "shorts", "falda", "faldas", "vestido", "vestidos", "ROPA INTERIOR", "interior", "ropa interior", "sudadera", "sudaderas", "pijama", "pijamas", "piyama", "piyamas", "pantaloneta", "pantalonetas", "jeans", "jean", "malla", "mallas", "licra", "licras", "leggins", "leggin", "legin", "legins", "falda short", "enterizo", "enterizos", "enterizo short", "chaqueta", "chaquetas", "chaleco", "chalecos", "camisa", "camisas", "camisetas", "camisera", "camiseras", "buzo", "buso", "buzos", "busos", "blusa jeans", "blusa ", "blusas", "blusa", "bikini", "bikinis"]
         for tipo in tipos_consultables:
             if tipo in lower_msg:
                 prenda_estandar = tipo.rstrip('s')  # quitar plural simple
