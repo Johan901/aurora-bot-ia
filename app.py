@@ -21,6 +21,8 @@ import re
 
 esperando_nombre = {}
 ultima_referencia = {}
+catalogo_enviado = {}  
+
 
 #Detectamos nombre
 def detectar_nombre(texto, sender_number=None):
@@ -673,6 +675,34 @@ def webhook():
         elif prenda_detectada or talla_detectada or correo_detectado or ciudad_detectada:
             actualizar_cliente(sender_number, None, prenda_detectada, talla_detectada, correo_detectado, ciudad_detectada)
 
+        
+        # Detectar catalogos
+        if any(p in lower_msg for p in ["catálogo", "catalogo", "ver ropa", "link", "link de ropa", "quiero ver", "catálogo por favor", "link del catálogo", "dónde está el catálogo", "muestrame", "que tienes", "quiero ver"]):
+            if not catalogo_enviado.get(sender_number):
+                catalogo_enviado[sender_number] = True  # marcar como enviado
+                ai_response = (
+                    f"{nombre_usuario} aquí te dejo el catálogo 📲 por nuestro canal de Telegram:\n"
+                    "👉 https://t.me/dulcedguadalupecali\n\n"
+                    "¿Pudiste abrirlo correctamente? 💬 Recuerda que necesitas tener *la app de Telegram* instalada en tu celular 📱."
+                )
+                insertar_mensaje(sender_number, "user", user_msg)
+                insertar_mensaje(sender_number, "assistant", ai_response)
+                twilio_response = MessagingResponse()
+                twilio_response.message(ai_response)
+                return str(twilio_response)
+
+        if catalogo_enviado.get(sender_number) and any(p in lower_msg for p in ["no abre", "no pude", "no tengo telegram", "no me abre", "no se puede", "no carga", "no funcionó", "no funciona", "no me deja", "no funciono", "no me deja"]):
+            ai_response = (
+                f"No te preocupes {nombre_usuario} 💖. A veces el catálogo de Telegram no abre si no tienes la app instalada.\n\n"
+                "Aquí te dejo un link alternativo que es más fácil de abrir desde el navegador:\n"
+                "👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos\n\n"
+                "¡Espero que ahora sí puedas verlo sin problema! 🛍️✨"
+            )
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", ai_response)
+            twilio_response = MessagingResponse()
+            twilio_response.message(ai_response)
+            return str(twilio_response)
 
 
 
@@ -687,7 +717,7 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
 
-
+        
 
         elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
             ai_response = buscar_promociones(nombre_usuario)
