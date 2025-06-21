@@ -276,6 +276,14 @@ def buscar_por_tipo_prenda(prenda_usuario, nombre_usuario=""):
     respuesta += "\n¿Te gusta alguno? Puedo ayudarte a separarlo o mostrarte más opciones 🛍️✨"
     return respuesta.strip()
 
+# Hacer pedido
+def mensaje_hacer_pedido(nombre_usuario=""):
+    return (
+        f"💡 {nombre_usuario} si deseas hacer un pedido, simplemente escribe *Hacer pedido* 🛍️.\n\n"
+        "Tu solicitud será enviada y una asesora se pondrá en contacto contigo muy pronto por este mismo chat 💬✨.\n"
+        "¡Gracias por confiar en Dulce Guadalupe! 💖"
+    )
+
 
 def recomendar_prendas(nombre_usuario="", excluidas=[]):
     conn = psycopg2.connect(
@@ -597,6 +605,15 @@ def webhook():
         return str(twilio_response)
 
 
+    if num_medias > 0 and "audio" in request.form.get("MediaContentType0", ""):
+        twilio_response = MessagingResponse()
+        twilio_response.message(
+            f"🎧 {nombre_usuario} recibí tu audio.\n\n"
+            "¿Deseas hacer un pedido o separar una prenda?\n"
+            + mensaje_hacer_pedido(nombre_usuario)
+        )
+        insertar_mensaje(sender_number, "assistant", "Mensaje por audio recibido.")
+        return str(twilio_response)
 
 
     try:
@@ -608,7 +625,7 @@ def webhook():
         intencion_separar = any(p in lower_msg for p in [
             "quiero comprar", "quiero separar", "me interesa", "me la puedes apartar", "dame esta", "quiero esta ref", "quiero pedir", "quiero pedirte", "pedido", "pedir",
             "la quiero", "separar", "quiero esta", "separame", "quiero esta", "para encargarte", "encargar", "se puede separar", "puedo separar", "separar ref", "me la apartas",
-            "quiero esta ref", "me interesa esta referencia", "me gustaría comprar", "deseo separar"
+            "quiero esta ref", "me interesa esta referencia", "me gustaría comprar", "deseo separar", "hacer pedido"
         ])
 
         if intencion_separar:
@@ -752,6 +769,7 @@ def webhook():
         if match_ref:
             ref_encontrada = match_ref.group().upper()
             ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
+            ai_response += "\n\n" + mensaje_hacer_pedido(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
