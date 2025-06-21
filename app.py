@@ -23,12 +23,16 @@ esperando_nombre = {}
 ultima_referencia = {}
 catalogo_enviado = {}  
 
-
 #Detectamos nombre
 def detectar_nombre(texto, sender_number=None):
     texto = texto.strip().lower()
+    palabras_invalidas = {
+        "hola", "buenas", "tardes", "dias", "noches", "tienes", "quiero", "necesito", "por", "favor",
+        "info", "informacion", "información", "me", "puedo", "ver", "gracias", "de", "la", "el", "una",
+        "separar", "referencia", "catalogo", "https", "para", "comprar"
+    }
 
-    # Detecta nombre en frases típicas
+    # 1. Frases típicas (me llamo, mi nombre es, soy)
     patrones = [
         r"\bme llamo (\w+)",
         r"\bmi nombre es (\w+)",
@@ -37,42 +41,33 @@ def detectar_nombre(texto, sender_number=None):
     for patron in patrones:
         match = re.search(patron, texto)
         if match:
-            nombre = match.group(1)
-            if nombre.isalpha():
-                return nombre.capitalize()
+            posible = match.group(1)
+            if posible.isalpha() and posible not in palabras_invalidas:
+                return posible.capitalize()
 
-    # Solo acepta una palabra como nombre si estamos esperando el nombre
+    # 2. Si está esperando el nombre y solo dice una palabra válida
     if sender_number and esperando_nombre.get(sender_number):
-        saludos_comunes = {"hola", "buenas", "buenosdias", "buenasdias", "buenastardes", "buenasnoches"}
-        palabras_invalidas = {"como", "quiero", "gracias", "ayuda", "necesito", "porfavor", "favor", "info", "información", "informacion"}
+        palabras = texto.split()
+        if len(palabras) == 1:
+            posible = palabras[0]
+            if posible.isalpha() and posible not in palabras_invalidas and len(posible) > 2:
+                return posible.capitalize()
 
-        # Extrae primera palabra si la oración comienza con un nombre
-        match = re.match(r"^(\w+)[\s,]*(de|desde|vivo|soy)?", texto)
-        if match:
-            posible_nombre = match.group(1)
-            if posible_nombre.isalpha() and posible_nombre.lower() not in saludos_comunes and posible_nombre.lower() not in palabras_invalidas:
-                return posible_nombre.capitalize()
-
-
-
-    # Detectar estructura tipo: "Hola, Juan" solo si no estamos esperando el nombre
+    # 3. Si dice "Hola Juan", "Buenas Sara", etc.
     if sender_number and not esperando_nombre.get(sender_number):
-        match = re.search(r"\b(?:hola|buenas)[\s,]*(\w+)", texto, re.IGNORECASE)
+        match = re.search(r"\b(?:hola|buenas)[\s,]*(\w+)", texto)
         if match:
-            nombre_posible = match.group(1).strip().lower()
-            saludos_comunes = {"hola", "buenas", "buena", "holaaa", "saludos", "tardes", "dias", "noches"}
-            if nombre_posible and nombre_posible not in saludos_comunes and nombre_posible.isalpha():
-                return nombre_posible.capitalize()
+            posible = match.group(1)
+            if posible.isalpha() and posible not in palabras_invalidas and len(posible) > 2:
+                return posible.capitalize()
 
     return None
-
 
 
 def detectar_correo(texto):
     patron = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     coincidencias = re.findall(patron, texto)
     return coincidencias[0] if coincidencias else None
-
 
 # 🔹 Guardar mensaje en la base de datos
 def insertar_mensaje(phone_number, role, message):
@@ -124,17 +119,17 @@ def recuperar_cliente_info(phone_number):
     )
     cur = conn.cursor()
     cur.execute("""
-        SELECT nombre, ultima_prenda, ultima_talla
+        SELECT nombre, ultima_prenda, ultima_talla, tipo_cliente
         FROM clientes_ia
         WHERE phone_number = %s
     """, (phone_number,))
     resultado = cur.fetchone()
     cur.close()
     conn.close()
-    return resultado  # (nombre, prenda, talla) o None
+    return resultado 
 
 # 🔹 Insertar o actualizar cliente en la tabla clientes_ia
-def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, correo=None, ciudad=None):
+def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, correo=None, ciudad=None, tipo_cliente=None):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -152,6 +147,9 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
         # Solo actualiza si hay datos nuevos
         campos = []
         valores = []
+        if tipo_cliente:
+            campos.append("tipo_cliente = %s")
+            valores.append(tipo_cliente)
         if ciudad:
             campos.append("ciudad = %s")
             valores.append(ciudad)
@@ -174,9 +172,9 @@ def actualizar_cliente(phone_number, nombre=None, prenda=None, talla=None, corre
             cur.execute(query, valores)
     else:
         cur.execute("""
-            INSERT INTO clientes_ia (phone_number, nombre, ultima_prenda, ultima_talla, correo, ciudad)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (phone_number, nombre, prenda, talla, correo, ciudad))
+            INSERT INTO clientes_ia (phone_number, nombre, ultima_prenda, ultima_talla, correo, ciudad, tipo_cliente)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (phone_number, nombre, prenda, talla, correo, ciudad, tipo_cliente))
 
     conn.commit()
     cur.close()
@@ -543,7 +541,7 @@ def webhook():
 
     # Recuperar info previa
     datos_cliente = recuperar_cliente_info(sender_number)
-    nombre, prenda, talla = datos_cliente if datos_cliente else (None, None, None)
+    nombre, prenda, talla, tipo_cliente = datos_cliente if datos_cliente else (None, None, None, None)
 
     # 👇 Activar bandera inmediatamente antes de responder
     if nombre is None:
@@ -656,6 +654,50 @@ def webhook():
             twilio_response.message(mensaje)
             return str(twilio_response)
 
+        # Si viene de Meta Ads
+        if "quiero más información" in lower_msg or "quiero mas información" in lower_msg:
+            if tipo_cliente is None:  # No hay tipo_cliente aún
+                pregunta_tipo = (
+                    f"{nombre_usuario}¡Claro que sí! 🌟\n\n"
+                    "¿Estás interesad@ en nuestras prendas *al por mayor* o *al detal*?\n"
+                    "Con eso te muestro el catálogo ideal para ti. 🛍️"
+                )
+                insertar_mensaje(sender_number, "user", user_msg)
+                insertar_mensaje(sender_number, "assistant", pregunta_tipo)
+                twilio_response = MessagingResponse()
+                twilio_response.message(pregunta_tipo)
+                return str(twilio_response)
+            
+        if lower_msg in ["al por mayor", "mayor", "por mayor", "mayorista"]:
+            actualizar_cliente(sender_number, tipo_cliente="mayorista")
+            respuesta = (
+                f"{nombre_usuario}¡Perfecto! Te comparto el catálogo exclusivo para compras al por mayor 🛒:\n"
+                "👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos\n\n"
+                "¿Pudiste abrirlo sin problema? 😊"
+            )
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", respuesta)
+            catalogo_enviado[sender_number] = True
+            twilio_response = MessagingResponse()
+            twilio_response.message(respuesta)
+            return str(twilio_response)
+
+        elif lower_msg in ["al detal", "detal", "comprar una", "comprar unidad"]:
+            actualizar_cliente(sender_number, tipo_cliente="detal")
+            respuesta = (
+                f"{nombre_usuario}¡Listo! Para compras al detal te comparto nuestro canal de Telegram 📲:\n"
+                "👉 https://t.me/dulcedguadalupecali\n\n"
+                "Allí encontrarás todos los precios al detal y también los de mayorista.\n\n"
+                "¿Pudiste abrir el catálogo sin problema? 💬"
+            )
+            insertar_mensaje(sender_number, "user", user_msg)
+            insertar_mensaje(sender_number, "assistant", respuesta)
+            catalogo_enviado[sender_number] = True
+            twilio_response = MessagingResponse()
+            twilio_response.message(respuesta)
+            return str(twilio_response)
+   
+
 
         #Prendas
         posibles_prendas = ["conjunto", "vestido", "body", "blusa", "falda"]
@@ -727,7 +769,7 @@ def webhook():
             twilio_response.message(ai_response)
             return str(twilio_response)
         
-        elif any(p in lower_msg for p in ["recomiéndame", "que me recomiendas", "recomendar", "mostrarme" "mostrar ref" "recomiendame algo", "que me quedaria bien", "recomienda", "sugiere", "sugerencia", "qué me ofreces", "tienes algo bonito", "algo que me quede bien"]):
+        elif any(p in lower_msg for p in ["recomiéndame", "que me recomiendas", "recomendar", "mostrarme", "mostrar ref", "recomiendame algo", "que me quedaria bien", "recomienda", "sugiere", "sugerencia", "qué me ofreces", "tienes algo bonito", "algo que me quede bien"]):
             ai_response = recomendar_prendas(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
