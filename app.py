@@ -39,13 +39,12 @@ def detectar_nombre(texto, sender_number=None):
         r"\bsoy (\w+)"
     ]
     for patron in patrones:
-        match = re.search(patron, texto)
-        if match:
+        for match in re.finditer(patron, texto):
             posible = match.group(1)
-            if posible.isalpha() and posible not in palabras_invalidas:
+            if posible.isalpha() and posible not in palabras_invalidas and len(posible) > 2:
                 return posible.capitalize()
 
-    # 2. Si está esperando el nombre y solo dice una palabra válida
+    # Si está esperando nombre y es una sola palabra válida
     if sender_number and esperando_nombre.get(sender_number):
         palabras = texto.split()
         if len(palabras) == 1:
@@ -53,7 +52,7 @@ def detectar_nombre(texto, sender_number=None):
             if posible.isalpha() and posible not in palabras_invalidas and len(posible) > 2:
                 return posible.capitalize()
 
-    # 3. Si dice "Hola Juan", "Buenas Sara", etc.
+    # Si dice "Hola Juan", "Buenas Sara", etc.
     if sender_number and not esperando_nombre.get(sender_number):
         match = re.search(r"\b(?:hola|buenas)[\s,]*(\w+)", texto)
         if match:
