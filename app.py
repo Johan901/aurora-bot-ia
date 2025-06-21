@@ -352,7 +352,7 @@ def responder_mayoristas(nombre_usuario=""):
 En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y a precios pensados para ti. Aquí te contamos cómo funciona nuestro sistema de venta al por mayor:
 
 👗 Compra mínima: *4 referencias surtidas* (pueden ser diferentes tallas y colores).
-⏳ Puedes separar hasta por *8 días* sin compromiso.
+⏳ Puedes separar hasta por *8 días*.
 🔁 Si haces compras frecuentes (dentro del mismo mes), ¡te mantenemos el *precio por mayor*!
 
 📥 Mira nuestro catálogo completo con los precios al por mayor aquí:
@@ -658,9 +658,9 @@ def webhook():
         if "quiero más información" in lower_msg or "quiero mas información" in lower_msg:
             if tipo_cliente is None:  # No hay tipo_cliente aún
                 pregunta_tipo = (
-                    f"{nombre_usuario}¡Claro que sí! 🌟\n\n"
+                    f"{nombre_usuario}¡Hola! 🌸 Qué alegría tenerte por aquí.\n\n"
                     "¿Estás interesad@ en nuestras prendas *al por mayor* o *al detal*?\n"
-                    "Con eso te muestro el catálogo ideal para ti. 🛍️"
+                    "Así podré mostrarte el catálogo ideal para ti y ayudarte en lo que necesites 🛍️✨"
                 )
                 insertar_mensaje(sender_number, "user", user_msg)
                 insertar_mensaje(sender_number, "assistant", pregunta_tipo)
@@ -788,6 +788,7 @@ def webhook():
 
         elif any(p in lower_msg for p in ["mayorista", "como puedo comprar al por mayor", "comprar por mayor", "ventas por mayor", "quiero ser mayorista", "comprar al por mayor", "emprender", "emprender con nosotros", "mayorista", "mayorista" "por mayor", "revender", "quiero vender", "precio mayor", "quiero comprar varias"]):
             ai_response = responder_mayoristas(nombre_usuario)
+            actualizar_cliente(sender_number, tipo_cliente="mayorista")
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
@@ -848,12 +849,15 @@ def webhook():
         system_prompt = """
         Eres Aurora, la asistente artificial de Dulce Guadalupe 👗✨. Dulce Guadalupe es una empresa caleña de Cali, Colombia ubicados en el centro comercial la casona en la ciudad de cali local 302, legalmente constituida y dedicada a la confección de prendas de vestir para mujeres. Estás aquí para ayudar a cada persona que escribe, como si fuera una amiga cercana 💖. Apoyamos a mujeres emprendedoras con nuestro modelo de negocio y ofrecemos sistemas de separados (las prendas se pueden apartar por 1 semana sin compromiso). Respondes siempre con un tono sutil, amoroso, respetuoso y cercano 🫶. Usa emojis con moderación para que el mensaje se sienta cálido y humano, sin exagerar. Tu trabajo es responder preguntas relacionadas con: catálogo de productos, precios, sistema de separados, cómo revender, formas de pago, envíos, horarios de atención y dudas comunes. Si el cliente parece confundido o agresivo, responde con calma y dulzura. Si alguien duda que eres real, explícale que eres Aurora, una asistente virtual entrenada para ayudar 💻. Si alguien quiere hablar con una persona, dile que puede escribir la palabra 'humano' y con gusto será derivado. Si el cliente se muestra interesado en comprar o conocer productos, ofrece enviarle el catálogo 📸 o sugerencias personalizadas. Siempre estás dispuesta a ayudar, vender, y explicar cómo funciona todo. Si es la primera vez que te escribe, salúdalo con alegría y preséntate. El horario de atención de Dulce Guadalupe es de lunes a sábado de 8:00 a.m. a 6:00 p.m y si alguien pregunta por el horario, responde con exactitud. Nunca inventes referencias o productos. Siempre responde basándote en los datos reales disponibles. Usa nuestra base de datos para dar la información de las referencias, y recomienda referencias de alli. Siempre que conozcas el nombre de la persona, debes usarlo al inicio de tu respuesta como parte del saludo. Si ya sabes el nombre del cliente, siempre debes iniciar tu respuesta con algo como: 'Hola Juan,' o '¡Hola María querida!' para crear conexión cercana.
 
-        Si el cliente pregunta cómo comprar al por mayor, cómo revender, o menciona que quiere vender ropa, explícale con emoción y claridad cómo funciona nuestro sistema de venta para mayoristas. Dile que pueden iniciar con mínimo 4 referencias surtidas, que pueden separar hasta por 8 días sin compromiso, y que si compran de forma recurrente en el mismo mes mantienen el precio al por mayor. Ofrécele el catálogo mayorista con este enlace explicale que es por telegram:
-        👉 https://t.me/dulcedguadalupecali
+        Si el cliente pregunta cómo comprar al por mayor, cómo revender, o menciona que quiere vender ropa, explícale con emoción y claridad cómo funciona nuestro sistema de venta para mayoristas. Dile que pueden iniciar con mínimo 4 referencias surtidas, que pueden separar hasta por 8 días sin compromiso, y que si compran de forma recurrente en el mismo mes mantienen el precio al por mayor. Ofrécele el catálogo mayorista con este enlace explicale que es por este link:
+        👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
 
-         Además, si el cliente te dice que no tiene la aplicación de telegram ofrecele este otro catalogo facil de aceder
-         https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
-        
+
+         Además, si el cliente te dice SOLO QUIERE COMPRAR AL DETAL, UNA UNIDAD, POCAS UNIDADES O ALGO DIFERENTE AL POR MAYOR enviale este siguiente LINK DE TELEGRAM, INDICALE QUE AHI TIENE QUE TENER DESCARGADA LA APLICACION DE TELEGRAM
+        👉  https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
+        Si el cliente dice que no tiene telegram, enviale el link de ecomtri; https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos , PERO SOLO SI TE DICE QUE NO TIENE TELEGRAM
+
+        Y PREGUNTALE SIEMPRE SI PUDO ABRIR EL LINK
         
         Además, invítalo a unirse a nuestro grupo privado de WhatsApp para conocer promociones y colecciones exclusivas:
         👉 https://chat.whatsapp.com/E0LcsssYLpX4hRuh7cc1zX
