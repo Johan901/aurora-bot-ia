@@ -657,7 +657,7 @@ def webhook():
         if "quiero más información" in lower_msg or "quiero mas información" in lower_msg:
             if tipo_cliente is None:  # No hay tipo_cliente aún
                 pregunta_tipo = (
-                    f"{nombre_usuario}¡Hola! 🌸 Qué alegría tenerte por aquí.\n\n"
+                    f"{nombre_usuario}¡Hola! Soy Aurora la Inteligencia Arficial de Dulce Guadalupe 🌸 Qué alegría tenerte por aquí.\n\n"
                     "¿Estás interesad@ en nuestras prendas *al por mayor* o *al detal*?\n"
                     "Así podré mostrarte el catálogo ideal para ti y ayudarte en lo que necesites 🛍️✨"
                 )
@@ -851,9 +851,8 @@ def webhook():
         Si el cliente pregunta cómo comprar al por mayor, cómo revender, o menciona que quiere vender ropa, explícale con emoción y claridad cómo funciona nuestro sistema de venta para mayoristas. Dile que pueden iniciar con mínimo 4 referencias surtidas, que pueden separar hasta por 8 días sin compromiso, y que si compran de forma recurrente en el mismo mes mantienen el precio al por mayor. Ofrécele el catálogo mayorista con este enlace explicale que es por este link:
         👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
 
-
          Además, si el cliente te dice SOLO QUIERE COMPRAR AL DETAL, UNA UNIDAD, POCAS UNIDADES O ALGO DIFERENTE AL POR MAYOR enviale este siguiente LINK DE TELEGRAM, INDICALE QUE AHI TIENE QUE TENER DESCARGADA LA APLICACION DE TELEGRAM
-        👉  https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
+        👉  https://t.me/dulcedguadalupecali
         Si el cliente dice que no tiene telegram, enviale el link de ecomtri; https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos , PERO SOLO SI TE DICE QUE NO TIENE TELEGRAM
 
         Y PREGUNTALE SIEMPRE SI PUDO ABRIR EL LINK
