@@ -564,6 +564,7 @@ def webhook():
     
     #Bloqueo
     if esta_bloqueado(sender_number):
+        insertar_mensaje(sender_number, "user", user_msg)
         return str(MessagingResponse())  # No responde nada si está bloqueado
     
     # 🔥 Desbloqueo automático si estaba bloqueado pero ya no usa [ASESOR]
