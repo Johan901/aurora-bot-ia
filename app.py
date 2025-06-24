@@ -713,7 +713,7 @@ def webhook():
                 f"{nombre_usuario}¡Listo! Para compras al detal te comparto nuestro canal de Telegram 📲:\n"
                 "👉 https://t.me/dulcedguadalupecali\n\n"
                 "Allí encontrarás todos los precios al detal y también los de mayorista.\n\n"
-                "¿Pudiste abrir el catálogo sin problema? 💬"\n\n
+                "¿Pudiste abrir el catálogo sin problema? 💬\n\n"
                 "¿Te gustaría que te ayude a hacer tu primer pedido? 🛍️ Estoy aquí para acompañarte. 💫"
             )
             insertar_mensaje(sender_number, "user", user_msg)
