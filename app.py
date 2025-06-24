@@ -688,19 +688,18 @@ def webhook():
             respuesta = (
                 f"{nombre_usuario}¡Perfecto! Te comparto el catálogo exclusivo para compras al por mayor 🛒:\n"
                 "👉 https://t.me/dulcedguadalupecali\n\n"
-                ""
-                "💖 Si estás pensando en emprender o ya tienes un negocio, esto es para ti:"
-                "En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y a precios pensados para ti. Aquí te contamos cómo funciona nuestro sistema de venta al por mayor:"
-                ""
-                "👗 Compra mínima: *4 referencias surtidas* (pueden ser diferentes tallas y colores)."
-                "⏳ Puedes separar hasta por *8 días*."
-                "🔁 Si haces compras frecuentes (dentro del mismo mes), ¡te mantenemos el *precio por mayor*!"
-                "🎁 Además, si quieres estar entre los primeros en conocer nuestras *nuevas colecciones y promociones exclusivas*,"
-                "únete a nuestro grupo privado de WhatsApp:"
-                "👉 https://chat.whatsapp.com/E0LcsssYLpX4hRuh7cc1zX"
-                ""
-                "Cuéntame ¿Pudiste abrir el catalogo sin problema? 😊"
+                "💖 Si estás pensando en emprender o ya tienes un negocio, esto es para ti:\n\n"
+                "En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y a precios pensados para ti.\n\n"
+                "📌 *¿Cómo funciona nuestro sistema mayorista?*\n"
+                "👗 Compra mínima: *4 referencias surtidas* (pueden ser diferentes tallas y colores).\n"
+                "⏳ Puedes separar hasta por *8 días*.\n"
+                "🔁 Si haces compras frecuentes (dentro del mismo mes), ¡te mantenemos el *precio por mayor*! 🥰\n\n"
+                "🎁 Además, si quieres estar entre los primeros en conocer nuestras *nuevas colecciones y promociones exclusivas*,\n"
+                "únete a nuestro grupo privado de WhatsApp:\n"
+                "👉 https://chat.whatsapp.com/E0LcsssYLpX4hRuh7cc1zX\n\n"
+                "📲 *Cuéntame*, ¿pudiste abrir el catálogo sin problema? 😊"
             )
+
             insertar_mensaje(sender_number, "user", user_msg)
             insertar_mensaje(sender_number, "assistant", respuesta)
             catalogo_enviado[sender_number] = True
@@ -714,8 +713,7 @@ def webhook():
                 f"{nombre_usuario}¡Listo! Para compras al detal te comparto nuestro canal de Telegram 📲:\n"
                 "👉 https://t.me/dulcedguadalupecali\n\n"
                 "Allí encontrarás todos los precios al detal y también los de mayorista.\n\n"
-                "¿Pudiste abrir el catálogo sin problema? 💬"
-                ""
+                "¿Pudiste abrir el catálogo sin problema? 💬"\n\n
                 "¿Te gustaría que te ayude a hacer tu primer pedido? 🛍️ Estoy aquí para acompañarte. 💫"
             )
             insertar_mensaje(sender_number, "user", user_msg)
