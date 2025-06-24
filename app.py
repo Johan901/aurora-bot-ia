@@ -363,7 +363,7 @@ En Dulce Guadalupe queremos ayudarte a crecer con prendas hermosas, de calidad y
 🔁 Si haces compras frecuentes (dentro del mismo mes), ¡te mantenemos el *precio por mayor*!
 
 📥 Mira nuestro catálogo completo con los precios al por mayor aquí:
-👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
+👉 https://t.me/dulcedguadalupecali
 
 🎁 Además, si quieres estar entre los primeros en conocer nuestras *nuevas colecciones y promociones exclusivas*,
 únete a nuestro grupo privado de WhatsApp:
@@ -687,7 +687,7 @@ def webhook():
             actualizar_cliente(sender_number, tipo_cliente="mayorista")
             respuesta = (
                 f"{nombre_usuario}¡Perfecto! Te comparto el catálogo exclusivo para compras al por mayor 🛒:\n"
-                "👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos\n\n"
+                "👉 https://t.me/dulcedguadalupecali\n\n"
                 "¿Pudiste abrirlo sin problema? 😊"
             )
             insertar_mensaje(sender_number, "user", user_msg)
@@ -885,6 +885,12 @@ def webhook():
         También si cualquier persona te pregunta por tallas, diles que en su mayoría se maneja talla unica ok.
 
         Siempre que el cliente te escriba, ofrecele un gran servicio al cliente, siempre responde con otra pregunta abierta, si le gustan las prendas, si hay algo mas en lo que le puede aydar y siempre serivicial.
+
+        Cuando le mandes la información al cliente sobre mayorista y demas, al final le preguntarás si quiere que le ayudes ha realizar su pedido, entonces mandale SIEMPRE el catalogo del telegram:  https://t.me/dulcedguadalupecali
+        Luego le dirás que revise el catalogo, escoja las preguntas y que cuando esté listo que te escriba la siguiente frase: "*quiero hacer el pedido*" y dire que será remitido al area de ventas, que en pocos instantes una asesora de ventas se comunicará directamente por esta misma conversacion.
+        Luego agradece su conversacion y que estaras encatanda de volverle a atender en el futuro, agradece su preferencia por Dulce Guadalupe.
+
+        Recuerda siempre preguntarle siempre si quiere algo mas, trata de enviar siempre el catalogo de telegram, pregunta siempre si puede abrir, si no, ya sabes reconocer y que mande el otro catalogo de ecometri, ya sabes.
         """
 
         completion = openai.ChatCompletion.create(
