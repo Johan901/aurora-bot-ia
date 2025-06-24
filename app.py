@@ -670,7 +670,7 @@ def webhook():
             return str(twilio_response)
 
         # Si viene de Meta Ads
-        if "quiero más información" in lower_msg or "quiero mas información" in lower_msg:
+        if "quiero más información" in lower_msg or "quiero mas información" in lower_msg or "¡Hola! Quiero más información." in lower_msg: 
             if tipo_cliente is None:  # No hay tipo_cliente aún
                 pregunta_tipo = (
                     f"{nombre_usuario}¡Hola! Soy Aurora la Asesora de Dulce Guadalupe 🌸 Qué alegría tenerte por aquí.\n\n"
