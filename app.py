@@ -624,7 +624,7 @@ def webhook():
         lower_msg = user_msg.lower()
         # Detectar intención de separación o compra inmediata
         intencion_separar = any(p in lower_msg for p in [
-            "quiero comprar", "quiero separar", "me interesa", "me la puedes apartar", "dame esta", "quiero esta ref", "quiero pedir", "quiero pedirte", "pedido", "pedir",
+            "quiero comprar", "quiero hacer un pedido", "hacer pedido", "hacer un pedido", "quiero separarlas", "separame estas", "quiero separar", "me interesa", "me la puedes apartar", "dame esta", "quiero esta ref", "quiero pedir", "quiero pedirte", "pedido", "pedir",
             "la quiero", "separar", "quiero esta", "separame", "quiero esta", "para encargarte", "encargar", "se puede separar", "puedo separar", "separar ref", "me la apartas",
             "quiero esta ref", "me interesa esta referencia", "me gustaría comprar", "deseo separar", "hacer pedido"
         ])
@@ -637,7 +637,7 @@ def webhook():
                 f"Gracias por tu interés {nombre_usuario} 🥰.\n\n"
                 "🛍️ Hemos recibido tu solicitud para separar o comprar esta prenda. "
                 "En unos instantes una asesora se pondrá en contacto contigo directamente por aquí 💬.\n\n"
-                "Mientras tanto, puedes seguir viendo nuestro catálogo completo aquí:\n"
+                "Mientras tanto, puedes seguir viendo nuestro catálogo completo aquí: Para\n"
                 "👉 https://dulceguadalupe-catalogo.ecometri.shop"
             )
 
