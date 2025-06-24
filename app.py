@@ -597,8 +597,8 @@ def webhook():
         twilio_response.message(
             f"📸 {nombre_usuario} recibí tu imagen.\n\n"
             "💡 Si deseas *separar una prenda* o *hacer un pedido*, por favor revisa nuestro catálogo:\n"
-            "👉 https://dulceguadalupe-catalogo.ecometri.shop\n\n"
-            "Cuando decidas sobre tu pedido, *escríbeme para remitirte con una asesora* 💖🛍️"
+            "👉 https://t.me/dulcedguadalupecali\n\n"
+            "Cuando decidas sobre tu pedido, *escríbeme* lo siguiente para remitirte al sector de ventas: *quiero hacer el pedido* 💖🛍️"
         )
 
         insertar_mensaje(sender_number, "assistant", "Mensaje informativo por imagen/archivo no procesado.")
@@ -624,9 +624,7 @@ def webhook():
         lower_msg = user_msg.lower()
         # Detectar intención de separación o compra inmediata
         intencion_separar = any(p in lower_msg for p in [
-            "quiero comprar", "quiero hacer un pedido", "hacer pedido", "hacer un pedido", "quiero separarlas", "separame estas", "quiero separar", "me interesa", "me la puedes apartar", "dame esta", "quiero esta ref", "quiero pedir", "quiero pedirte", "pedido", "pedir",
-            "la quiero", "separar", "quiero esta", "separame", "quiero esta", "para encargarte", "encargar", "se puede separar", "puedo separar", "separar ref", "me la apartas",
-            "quiero esta ref", "me interesa esta referencia", "me gustaría comprar", "deseo separar", "hacer pedido"
+            "quiero hacer el pedido"
         ])
 
         if intencion_separar:
@@ -637,8 +635,8 @@ def webhook():
                 f"Gracias por tu interés {nombre_usuario} 🥰.\n\n"
                 "🛍️ Hemos recibido tu solicitud para separar o comprar esta prenda. "
                 "En unos instantes una asesora se pondrá en contacto contigo directamente por aquí 💬.\n\n"
-                "Mientras tanto, puedes seguir viendo nuestro catálogo completo aquí: Para\n"
-                "👉 https://dulceguadalupe-catalogo.ecometri.shop"
+                "Mientras tanto, puedes seguir viendo nuestro catálogo completo aquí:\n"
+                "👉 https://t.me/dulcedguadalupecali"
             )
 
             # Guardar en historial
@@ -675,7 +673,7 @@ def webhook():
         if "quiero más información" in lower_msg or "quiero mas información" in lower_msg:
             if tipo_cliente is None:  # No hay tipo_cliente aún
                 pregunta_tipo = (
-                    f"{nombre_usuario}¡Hola! Soy Aurora la Inteligencia Arficial de Dulce Guadalupe 🌸 Qué alegría tenerte por aquí.\n\n"
+                    f"{nombre_usuario}¡Hola! Soy Aurora la Asesora de Dulce Guadalupe 🌸 Qué alegría tenerte por aquí.\n\n"
                     "¿Estás interesad@ en nuestras prendas *al por mayor* o *al detal*?\n"
                     "Así podré mostrarte el catálogo ideal para ti y ayudarte en lo que necesites 🛍️✨"
                 )
@@ -868,14 +866,16 @@ def webhook():
         Eres Aurora, la asistente artificial de Dulce Guadalupe 👗✨. Dulce Guadalupe es una empresa caleña de Cali, Colombia ubicados en el centro comercial la casona en la ciudad de cali local 302, legalmente constituida y dedicada a la confección de prendas de vestir para mujeres. Estás aquí para ayudar a cada persona que escribe, como si fuera una amiga cercana 💖. Apoyamos a mujeres emprendedoras con nuestro modelo de negocio y ofrecemos sistemas de separados (las prendas se pueden apartar por 1 semana sin compromiso). Respondes siempre con un tono sutil, amoroso, respetuoso y cercano 🫶. Usa emojis con moderación para que el mensaje se sienta cálido y humano, sin exagerar. Tu trabajo es responder preguntas relacionadas con: catálogo de productos, precios, sistema de separados, cómo revender, formas de pago, envíos, horarios de atención y dudas comunes. Si el cliente parece confundido o agresivo, responde con calma y dulzura. Si alguien duda que eres real, explícale que eres Aurora, una asistente virtual entrenada para ayudar 💻. Si alguien quiere hablar con una persona, dile que puede escribir la palabra 'humano' y con gusto será derivado. Si el cliente se muestra interesado en comprar o conocer productos, ofrece enviarle el catálogo 📸 o sugerencias personalizadas. Siempre estás dispuesta a ayudar, vender, y explicar cómo funciona todo. Si es la primera vez que te escribe, salúdalo con alegría y preséntate. El horario de atención de Dulce Guadalupe es de lunes a sábado de 8:00 a.m. a 6:00 p.m y si alguien pregunta por el horario, responde con exactitud. Nunca inventes referencias o productos. Siempre responde basándote en los datos reales disponibles. Usa nuestra base de datos para dar la información de las referencias, y recomienda referencias de alli. Siempre que conozcas el nombre de la persona, debes usarlo al inicio de tu respuesta como parte del saludo. Si ya sabes el nombre del cliente, siempre debes iniciar tu respuesta con algo como: 'Hola Juan,' o '¡Hola María querida!' para crear conexión cercana.
 
         Si el cliente pregunta cómo comprar al por mayor, cómo revender, o menciona que quiere vender ropa, explícale con emoción y claridad cómo funciona nuestro sistema de venta para mayoristas. Dile que pueden iniciar con mínimo 4 referencias surtidas, que pueden separar hasta por 8 días sin compromiso, y que si compran de forma recurrente en el mismo mes mantienen el precio al por mayor. Ofrécele el catálogo mayorista con este enlace explicale que es por este link:
-        👉 https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
+        👉 https://t.me/dulcedguadalupecali
 
          Además, si el cliente te dice SOLO QUIERE COMPRAR AL DETAL, UNA UNIDAD, POCAS UNIDADES O ALGO DIFERENTE AL POR MAYOR enviale este siguiente LINK DE TELEGRAM, INDICALE QUE AHI TIENE QUE TENER DESCARGADA LA APLICACION DE TELEGRAM
         👉  https://t.me/dulcedguadalupecali
         Si el cliente dice que no tiene telegram, enviale el link de ecomtri; https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos , PERO SOLO SI TE DICE QUE NO TIENE TELEGRAM
 
-        Y PREGUNTALE SIEMPRE SI PUDO ABRIR EL LINK
-        
+        También Si el cliente dice que no tiene telegram o no pudo abrir el enlace , enviale el link de ecomtri; https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos 
+
+        Y cuando mandes los links de los catalogos preguntar siempre de nuevo si los pudo abrir, si el de telegram no le abre mandar el link de ecometri https://dulceguadalupe-catalogo.ecometri.shop/573104238002/collections/conjuntos
+                
         Además, invítalo a unirse a nuestro grupo privado de WhatsApp para conocer promociones y colecciones exclusivas:
         👉 https://chat.whatsapp.com/E0LcsssYLpX4hRuh7cc1zX
 
@@ -883,6 +883,8 @@ def webhook():
         👉 https://www.instagram.com/dulceguadalupe_empresa?igsh=MTJqbzJpZWo3bHlyMg==
 
         También si cualquier persona te pregunta por tallas, diles que en su mayoría se maneja talla unica ok.
+
+        Siempre que el cliente te escriba, ofrecele un gran servicio al cliente, siempre responde con otra pregunta abierta, si le gustan las prendas, si hay algo mas en lo que le puede aydar y siempre serivicial.
         """
 
         completion = openai.ChatCompletion.create(
