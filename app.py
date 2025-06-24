@@ -880,6 +880,8 @@ def webhook():
 
         Si te preguntan por el instagram dales el link e invitalos a ver todas las publicaciones y todo lo que publicamos:
         👉 https://www.instagram.com/dulceguadalupe_empresa?igsh=MTJqbzJpZWo3bHlyMg==
+
+        También si cualquier persona te pregunta por tallas, diles que en su mayoría se maneja talla unica ok.
         """
 
         completion = openai.ChatCompletion.create(
