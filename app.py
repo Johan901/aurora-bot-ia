@@ -16,7 +16,6 @@ import numpy as np
 
 app = Flask(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
-quoted_sid = request.form.get("QuotedMessageSid")
 
 import re
 
@@ -554,6 +553,8 @@ def webhook():
     user_msg = (request.form.get("Body") or "").strip()
     sender_number = request.form.get("From")
     num_medias = int(request.form.get("NumMedia", "0"))
+    quoted_sid = request.form.get("QuotedMessageSid")
+
 
     # Recuperar info previa
     datos_cliente = recuperar_cliente_info(sender_number)
