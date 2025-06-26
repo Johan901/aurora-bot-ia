@@ -16,6 +16,7 @@ import numpy as np
 
 app = Flask(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
+quoted_sid = request.form.get("QuotedMessageSid")
 
 import re
 
@@ -68,8 +69,7 @@ def detectar_correo(texto):
     coincidencias = re.findall(patron, texto)
     return coincidencias[0] if coincidencias else None
 
-# 🔹 Guardar mensaje en la base de datos
-def insertar_mensaje(phone_number, role, message):
+def insertar_mensaje(phone_number, role, message, quoted_sid=None):
     conn = psycopg2.connect(
         host=os.getenv("PG_HOST"),
         dbname=os.getenv("PG_DB"),
@@ -78,13 +78,22 @@ def insertar_mensaje(phone_number, role, message):
         port=os.getenv("PG_PORT", "5432")
     )
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO chat_history (phone_number, role, message)
-        VALUES (%s, %s, %s)
-    """, (phone_number, role, message))
+
+    if quoted_sid:
+        cur.execute("""
+            INSERT INTO chat_history (phone_number, role, message, quoted_sid)
+            VALUES (%s, %s, %s, %s)
+        """, (phone_number, role, message, quoted_sid))
+    else:
+        cur.execute("""
+            INSERT INTO chat_history (phone_number, role, message)
+            VALUES (%s, %s, %s)
+        """, (phone_number, role, message))
+
     conn.commit()
     cur.close()
     conn.close()
+
 
 # 🔹 Recuperar los últimos X mensajes
 def recuperar_historial(phone_number, limite=15):
