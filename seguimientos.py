@@ -39,7 +39,7 @@ def enviar_mensaje_y_registrar(phone, texto):
 
 # Obtener nombre si está disponible
 def obtener_nombre(cur, phone_number):
-    cur.execute("SELECT nombre FROM clientes_ia WHERE numero = %s", (phone_number,))
+    cur.execute("SELECT nombre FROM clientes_ia WHERE phone_number = %s", (phone_number,))
     resultado = cur.fetchone()
     if resultado and resultado[0]:
         return resultado[0].split()[0].capitalize()
