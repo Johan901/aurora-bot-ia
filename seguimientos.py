@@ -20,11 +20,20 @@ def get_connection():
 # Enviar mensaje y registrar en chat_history
 def enviar_mensaje_y_registrar(phone, texto):
     client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+    from_number = os.getenv("TWILIO_NUMBER")
+    if not from_number.startswith("whatsapp:"):
+        from_number = "whatsapp:" + from_number
+
+    to_number = phone
+    if not to_number.startswith("whatsapp:"):
+        to_number = "whatsapp:" + to_number
+
     message = client.messages.create(
-        from_=os.getenv("TWILIO_NUMBER"),
-        to=phone,
+        from_=from_number,
+        to=to_number,
         body=texto
     )
+
 
     # Registrar en chat_history
     conn = get_connection()
