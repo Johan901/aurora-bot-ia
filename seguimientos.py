@@ -92,6 +92,4 @@ def revisar_seguimientos():
     conn.close()
 
 if __name__ == "__main__":
-    while True:
-        revisar_seguimientos()
-        time.sleep(600)  # 600 segundos = 10 minutos
+    revisar_seguimientos()
