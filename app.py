@@ -546,6 +546,25 @@ def detectar_ciudad(texto):
 
     return None
 
+# Registrar Seguimiento de CMR
+def registrar_seguimiento(phone_number):
+    conn = psycopg2.connect(
+        host=os.getenv("PG_HOST"),
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        port=os.getenv("PG_PORT", "5432")
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO seguimientos (phone_number, ultima_respuesta)
+        VALUES (%s, NOW())
+        ON CONFLICT (phone_number) DO UPDATE SET ultima_respuesta = NOW()
+    """, (phone_number,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
 
 # 🔹 Ruta webhook para Twilio
 @app.route("/webhook", methods=["POST"])
@@ -575,6 +594,7 @@ def webhook():
     #Bloqueo
     if esta_bloqueado(sender_number):
         insertar_mensaje(sender_number, "user", user_msg)
+        registrar_seguimiento(sender_number)
         return str(MessagingResponse())  # No responde nada si está bloqueado
     
     # 🔥 Desbloqueo automático si estaba bloqueado pero ya no usa [ASESOR]
@@ -584,6 +604,7 @@ def webhook():
     if user_msg.startswith("[ASESOR]"): 
         # Bloqueo automático
         insertar_mensaje(sender_number, "user", user_msg)
+        registrar_seguimiento(sender_number)
         bloquear_aurora_para(sender_number)
         return str(MessagingResponse())  # no deja que Aurora responda a esto
 
@@ -612,6 +633,7 @@ def webhook():
         )
 
         insertar_mensaje(sender_number, "assistant", "Mensaje informativo por imagen/archivo no procesado.")
+        registrar_seguimiento(sender_number)
 
         return str(twilio_response)
 
@@ -624,6 +646,7 @@ def webhook():
             + mensaje_hacer_pedido(nombre_usuario)
         )
         insertar_mensaje(sender_number, "assistant", "Mensaje por audio recibido.")
+        registrar_seguimiento(sender_number)
         return str(twilio_response)
 
 
@@ -651,6 +674,7 @@ def webhook():
 
             # Guardar en historial
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", mensaje)
 
             try:
@@ -688,6 +712,7 @@ def webhook():
                     "Así podré mostrarte el catálogo ideal para ti y ayudarte en lo que necesites 🛍️✨"
                 )
                 insertar_mensaje(sender_number, "user", user_msg)
+                registrar_seguimiento(sender_number)
                 insertar_mensaje(sender_number, "assistant", pregunta_tipo)
                 twilio_response = MessagingResponse()
                 twilio_response.message(pregunta_tipo)
@@ -711,6 +736,7 @@ def webhook():
             )
 
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", respuesta)
             catalogo_enviado[sender_number] = True
             twilio_response = MessagingResponse()
@@ -727,6 +753,7 @@ def webhook():
                 "¿Te gustaría que te ayude a hacer tu primer pedido? 🛍️ Estoy aquí para acompañarte. 💫"
             )
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", respuesta)
             catalogo_enviado[sender_number] = True
             twilio_response = MessagingResponse()
@@ -764,6 +791,7 @@ def webhook():
                     "¿Pudiste abrirlo correctamente? 💬 Recuerda que necesitas tener *la app de Telegram* instalada en tu celular 📱."
                 )
                 insertar_mensaje(sender_number, "user", user_msg)
+                registrar_seguimiento(sender_number)
                 insertar_mensaje(sender_number, "assistant", ai_response)
                 twilio_response = MessagingResponse()
                 twilio_response.message(ai_response)
@@ -777,6 +805,7 @@ def webhook():
                 "¡Espero que ahora sí puedas verlo sin problema! 🛍️✨"
             )
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
@@ -791,6 +820,7 @@ def webhook():
             ai_response = buscar_por_referencia(ref_encontrada, nombre_usuario)
             ai_response += "\n\n" + mensaje_hacer_pedido(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
@@ -801,6 +831,7 @@ def webhook():
         elif any(palabra in lower_msg for palabra in ["promocion", "promoción", "oferta", "barato", "promo"]):
             ai_response = buscar_promociones(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
@@ -809,6 +840,7 @@ def webhook():
         elif any(p in lower_msg for p in ["recomiéndame", "que me recomiendas", "recomendar", "mostrarme", "mostrar ref", "recomiendame algo", "que me quedaria bien", "recomienda", "sugiere", "sugerencia", "qué me ofreces", "tienes algo bonito", "algo que me quede bien"]):
             ai_response = recomendar_prendas(nombre_usuario)
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
@@ -818,6 +850,7 @@ def webhook():
             ya_mostradas = referencias_mostradas(historial)
             ai_response = recomendar_prendas(nombre_usuario, excluidas=ya_mostradas)
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
@@ -827,6 +860,7 @@ def webhook():
             ai_response = responder_mayoristas(nombre_usuario)
             actualizar_cliente(sender_number, tipo_cliente="mayorista")
             insertar_mensaje(sender_number, "user", user_msg)
+            registrar_seguimiento(sender_number)
             insertar_mensaje(sender_number, "assistant", ai_response)
             twilio_response = MessagingResponse()
             twilio_response.message(ai_response)
@@ -869,6 +903,7 @@ def webhook():
                 prenda_estandar = tipo.rstrip('s')  # quitar plural simple
                 ai_response = buscar_por_tipo_prenda(prenda_estandar, nombre_usuario)
                 insertar_mensaje(sender_number, "user", user_msg)
+                registrar_seguimiento(sender_number)
                 insertar_mensaje(sender_number, "assistant", ai_response)
                 twilio_response = MessagingResponse()
                 twilio_response.message(ai_response)
@@ -939,6 +974,7 @@ def webhook():
         ai_response = "Lo siento, ocurrió un error interno procesando tu mensaje 😥."
 
     insertar_mensaje(sender_number, "user", user_msg)
+    registrar_seguimiento(sender_number)
     insertar_mensaje(sender_number, "assistant", ai_response)
 
     twilio_response = MessagingResponse()
