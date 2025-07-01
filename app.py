@@ -655,10 +655,16 @@ def webhook():
         primera_vez = len(historial) == 0
 
         lower_msg = user_msg.lower()
-        # Detectar intención de separación o compra inmediata
-        intencion_separar = any(p in lower_msg for p in [
-            "quiero hacer el pedido"
-        ])
+       # Detectar intención de separación o compra inmediata
+        frases_intencion = [
+            "quiero hacer el pedido", "hacer un pedido", "voy a hacer un pedido",
+            "quiero comprar", "voy a comprar", "lo quiero", "quiero ese", "quiero esa",
+            "me interesa", "lo voy a separar", "quiero separarlo", "quiero separarla",
+            "quiero pedirlo", "quiero pedirla", "quiero encargarlo", "quiero encargarla",
+            "separar esa", "separar ese", "cómo separo", "cómo lo separo"
+        ]
+
+        intencion_separar = any(frase in lower_msg for frase in frases_intencion)
 
         if intencion_separar:
             datos_cliente = recuperar_cliente_info(sender_number)
